@@ -1,0 +1,25 @@
+---
+title: "StatsProject2_eric"
+author: "Eric Laigaie"
+date: "3/18/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+
+```
+
+```{r}
+columns = c('age', 'workclass', 'fnlwgt', 'education', 'education-num', 'marital-status', 'occupation', 'relationship', 'race', 'sex', 'capital-gain', 'capital-loss', 'hours-per-week', 'native-country')
+
+df_train <- read_csv("C:\\Users\\ericl\\OneDrive\\Desktop\\SMU\\Applied Statistics - SPRING 2022\\Project 2\\adult.data", col_names=columns)
+df_test <- read_csv("C:\\Users\\ericl\\OneDrive\\Desktop\\SMU\\Applied Statistics - SPRING 2022\\Project 2\\adult.test", col_names = columns)
+```
+
+```{r}
+write.csv(df_train, "C:\\Users\\ericl\\OneDrive\\Desktop\\SMU\\Applied Statistics - SPRING 2022\\Project 2\\train.csv")
+write.csv(df_test, "C:\\Users\\ericl\\OneDrive\\Desktop\\SMU\\Applied Statistics - SPRING 2022\\Project 2\\test.csv")
+```
