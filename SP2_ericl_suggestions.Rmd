@@ -1,0 +1,112 @@
+---
+title: "SP2_ericl_suggestions"
+author: "Eric Laigaie"
+date: "3/21/2022"
+output: html_document
+---
+
+Loading in packages
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(GGally)
+library(ggpubr)
+```
+
+Data is stored in a .data and .test file. Let's read them as .csvs & define the column names.
+```{r}
+df_train <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_2/main/train.csv")
+df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_2/main/test.csv")
+```
+
+```{r}
+library(ggcorrplot)
+
+# correlate each numeric with the response (dummied variable)
+df_train <- df_train %>% mutate(dummy_response = ifelse(pay_response == "<=50K", 0, 1))
+
+corr_train <- df_train %>% dplyr::select(where(is.numeric))
+
+# This is giving me a weird plot that is all flat.
+#ggcorrplot(corr_train, method='circle')
+
+round(cor(corr_train), 2)
+```
+This corr matrix shows me some weak positive correlations between dummy_response and the following variables:
+  age, education_num, capital_gain, capital_loss, hours_per_week
+  ****remember, the response variable is dummy, so this isn't any great insight. It's just to give us some idea of the relationships.
+
+Maybe create Capital_Gain - Capital_Loss variable? Might help us understand the >50K population at high Cap_Loss values.
+```{r}
+df_train$capital_net <- df_train$capital_gain - df_train$capital_loss
+
+ggplot(df_train, aes(x=capital_net, fill=pay_response)) + geom_density(alpha=.6) + labs(title='cap_net Density - By Pay_Reponse') + xlim(0, 16000)
+
+cor(df_train$capital_net, df_train$dummy_response) # .2144 (cap gain is .22 and cap loss is .15)
+```
+This variable may come in handy during the models. We'll have to see if _net is more significant than _gain and _loss. Including _net with either of the others would likely cause too much collinearity.
+
+Consolidate groups...Education/Country/Marital_Status, etc. MY IDEAS FOR GROUPS BELOW
+```{r}
+# Education
+df_train %>% group_by(education) %>% summarize(mean_dummy = mean(dummy_response)) %>% arrange(mean_dummy) %>% ggplot(aes(y=as.factor(education), x=mean_dummy, color=education)) + geom_point(size=2)
+
+# Preschool
+# 1st-4th, 5th-6th, 7th-8th, 9th, 10th, 11th, 12th
+# HS-grad, Some-college
+# Assoc-acdm, Assoc-voc
+# Bachelors
+# Masters
+# Doctorate, Prof-School
+```
+
+```{r}
+unique(df_train$marital_status)
+
+df_train %>% group_by(marital_status) %>% summarize(mean_dummy = mean(dummy_response)) %>% arrange(mean_dummy) %>% ggplot(aes(y=as.factor(marital_status), x=mean_dummy, color=marital_status)) + geom_point(size=2)
+
+# Could maybe just combine the Married (civilian and armed forces). The others seem distinct enough in scenario and mean_dummy
+```
+
+```{r Country, fig.height=6, fig.width=10}
+unique(df_train$native_country)
+
+asia <- c('Cambodia','China','Hong','India','Iran','Japan','Laos','Philippines','Taiwan','Thailand','Vietnam')
+europe <- c('England','France','Germany','Greece','Holand-Netherlands','Hungary','Ireland','Italy','Poland','Portugal','Scotland','Yugoslavia')
+namerica <- c('Canada','United-States')
+camerica <- c('Cuba','Dominican-Republic','El-Salvador','Guatemala','Haiti','Honduras','Jamaica','Mexico','Nicaragua','Puerto-Rico','Trinadad&Tobago')
+samerica <- c('Columbia','Ecuador','Peru')
+islands <- c('Outlying-US(Guam-USVI-etc)')
+other <- c('South', '?')
+
+df_train <- df_train %>% mutate(native_region = ifelse(
+  native_country %in% asia, 'Asia', ifelse(
+    native_country %in% europe, 'Europe', ifelse(
+      native_country %in% namerica, 'NAmerica', ifelse(
+        native_country %in% samerica, 'SAmerica', ifelse(
+          native_country %in% islands, 'Islands', ifelse(
+            native_country %in% camerica, 'CAmerica', 'other')
+        )
+      )
+    )
+  )
+))
+
+df_train %>% group_by(native_country, native_region) %>% 
+  summarize(mean_dummy = mean(dummy_response)) %>% 
+  arrange(mean_dummy) %>% 
+  ggplot(aes(y=as.factor(native_country), x=mean_dummy, color=native_country)) + 
+  geom_point(size=2) + 
+  theme(legend.position='none') + 
+  facet_wrap(~native_region, scales='free')
+```
+From the above charts, there appears to be plenty of variance between the countries. While we could make some successful regions, maybe we could categorize countries based on GDP from 1996? Or simply make mean_dummy tiers that would hold countries of whatever region?
+
+I don't love making grouping decisions based off a dummy variable though, so the GDP idea might be the most secure. Or just leaving it alone.
+
+
+
+The ? values are concerning, especially considering that I can't think of a way to impute them...we'll have to talk about that.
