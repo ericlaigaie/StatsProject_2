@@ -147,3 +147,11 @@ I don't love making grouping decisions based off a dummy variable though, so the
 
 
 The ? values are concerning, especially considering that I can't think of a way to impute them...we'll have to talk about that.
+
+#Question 1. Logistical Regression
+```{r}
+
+#use family = binomial since we are figuring out if the outcome is >50k.
+log.model <- glm(pay_response ~ ., family = binomial(), df_train)
+
+```
