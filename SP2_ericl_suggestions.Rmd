@@ -22,6 +22,43 @@ df_train <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject
 df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_2/main/test.csv")
 ```
 
+
+#checkdata
+```{r}
+
+#Change all Character classes to factor
+df_train <- as.data.frame(unclass(df_train), stringsAsFactors = TRUE)
+df_test <- as.data.frame(unclass(df_test), stringsAsFactors = TRUE)
+
+#check columns of each set
+head(df_train)
+head(df_test)
+#Finding is train has an additional column called "dummy response" 
+
+#create summary
+summary(df_train)
+str(df_train)
+summary(df_test)
+str(df_train)
+
+#Findings 
+# 1. Working class has "?" train (1836 rows) & test (963 rows), what do we do? recommend to remove
+# 2. occupation class has "?" train (583 rows) & test (966 rows), what do we do? recommend to remove
+# 3. Education has 16 levels, would suggest anything 12th and under to be grouped into group called "No Degree"
+# 4. Capital_gain and capital_loss can be grouped into capital_net
+# 5. Native countries has 42 levels, maybe reduced to continent groups (ASIA, AFRICA, NA, SA, EU, AUS)
+# 6. Native countries in test have 274 "?", what do we do here?
+# 7. Education and Education_num is correlated.  You don't even need to do any additional work to prove that.
+
+#check for number of null values in data
+sapply(df_train, function(x) sum(is.na(x)))
+sapply(df_test, function(x) sum(is.na(x)))
+
+#Finding
+#We don't have have any missing values in either of the data sets
+
+```
+
 ```{r}
 library(ggcorrplot)
 
