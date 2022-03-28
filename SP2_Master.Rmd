@@ -14,6 +14,11 @@ library(tidyverse)
 library(ggplot2)
 library(GGally)
 library(ggpubr)
+library(MASS)
+library(car)
+library(caret)
+library(ROCR)
+library(glmnet)
 ```
 
 ### Data is stored in a .data and .test file. Let's read them as .csvs & define the column names.
@@ -228,8 +233,8 @@ df_test2 %>% filter(capital_gain != 0 & capital_loss != 0)
 df_train2$capital_net = df_train2$capital_gain - df_train2$capital_loss
 df_test2$capital_net = df_test2$capital_gain - df_test2$capital_loss
 
-df_train2 <- select (df_train2,-c(capital_gain, capital_loss))
-df_test2 <- select (df_test2,-c(capital_gain, capital_loss))
+df_train2 <- dplyr::select(df_train2,-c(capital_gain, capital_loss))
+df_test2 <- dplyr::select(df_test2,-c(capital_gain, capital_loss))
 ```
 
 ### Education & Education_Num
@@ -242,8 +247,8 @@ ggplot(df_test2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianr
 
 # Here, you can see that these two variables are directly related, as expected...so we can only include one. Since education is best viewed through factors (there isn't a numerical relationship between education levels), we'll keep education.
 
-df_train2 <- select (df_train2,-c(education_num))
-df_test2 <- select (df_test2,-c(education_num))
+df_train2 <- dplyr::select(df_train2,-c(education_num))
+df_test2 <- dplyr::select(df_test2,-c(education_num))
 ```
 
 ### Plot Matrix
@@ -272,3 +277,75 @@ print(paste('Percentage of positive responses in Test: ',
 ### What's Next?
 1. We should look through the factor variables for any evidence of collinearity.
 2. We should consider if variables make sense to include in the model (fnlwgt).
+
+### Objective 1 - Stepwise & LASSO Models
+```{r}
+# Create the model with selection
+full.log<-glm(pay_response~.,family="binomial",data=df_train2)
+step.log<-full.log %>% stepAIC(trace=FALSE)
+
+# Summary of model
+summary(step.log)
+
+# Odds ratios of model
+exp(cbind("Odds ratio" = coef(step.log), confint.default(step.log, level = 0.95)))
+
+# Make predictions on model
+fit.pred.step<-predict(step.log,newdata=df_test2,type="response")
+
+# Set cutoff and make classifications from predictions
+cutoff<-0.5
+class.step<-factor(ifelse(fit.pred.step>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
+
+# Print confusion matrix
+conf.step<-table(class.step,df_test2$pay_response)
+confusionMatrix(conf.step)
+```
+
+```{r}
+# Prepare matrices
+dat.train.x <- model.matrix(pay_response~.-1,df_train2)
+dat.train.y<-df_train2[,13]
+
+# Do cross-validation and plot
+cvfit <- cv.glmnet(dat.train.x, dat.train.y, family = "binomial", type.measure = "class", nlambda = 1000)
+plot(cvfit)
+coef(cvfit, s = "lambda.min")
+print("CV Error Rate:")
+cvfit$cvm[which(cvfit$lambda==cvfit$lambda.min)]
+
+#Optimal penalty
+print("Penalty Value:")
+cvfit$lambda.min
+
+#For final model predictions go ahead and refit lasso using entire
+#data set
+finalmodel<-glmnet(dat.train.x, dat.train.y, family = "binomial",lambda=cvfit$lambda.min)
+
+#Test set predictions & confusion matrix
+dat.test.x<-model.matrix(pay_response~.-1,df_test2)
+fit.pred.lasso <- predict(finalmodel, newx = dat.test.x, type = "response")
+
+# Set cutoff and make classifications off of predictions
+cutoff<-0.5
+class.lasso<-factor(ifelse(fit.pred.lasso>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
+
+#Confusion Matrix for Lasso
+conf.lasso<-table(class.lasso,df_test2$pay_response)
+confusionMatrix(conf.lasso)
+```
+
+```{r}
+# Prepare LASSO ROC Curve
+results.lasso<-prediction(fit.pred.lasso, df_test2$pay_response,label.ordering=c("<=50K",">50K"))
+roc.lasso = performance(results.lasso, measure = "tpr", x.measure = "fpr")
+
+# Prepare Step ROC Curve
+results.step<-prediction(fit.pred.step, df_test2$pay_response,label.ordering=c("<=50K",">50K"))
+roc.step = performance(results.step, measure = "tpr", x.measure = "fpr")
+
+plot(roc.lasso)
+plot(roc.step,col="orange", add = TRUE)
+legend("bottomright",legend=c("Lasso","Stepwise"),col=c("blue", "orange"),lty=1,lwd=1)
+abline(a=0, b= 1)
+```
