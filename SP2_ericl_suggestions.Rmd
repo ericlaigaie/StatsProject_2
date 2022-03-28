@@ -139,6 +139,13 @@ df_train %>% group_by(native_country, native_region) %>%
   geom_point(size=2) + 
   theme(legend.position='none') + 
   facet_wrap(~native_region, scales='free')
+
+df_train %>% filter(native_country == 'South') # 80 rows
+df_test %>% filter(native_country == 'South') # 35 rows
+```
+
+```{r}
+ggplot(df_train, aes(y=education, x=education_num)) + geom_boxplot()
 ```
 From the above charts, there appears to be plenty of variance between the countries. While we could make some successful regions, maybe we could categorize countries based on GDP from 1996? Or simply make mean_dummy tiers that would hold countries of whatever region?
 

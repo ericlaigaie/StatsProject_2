@@ -1,0 +1,274 @@
+---
+title: "SP2_Master"
+author: "Eric Laigaie"
+date: "3/28/2022"
+output: html_document
+---
+
+Loading in packages
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(GGally)
+library(ggpubr)
+```
+
+### Data is stored in a .data and .test file. Let's read them as .csvs & define the column names.
+```{r}
+df_train <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_2/main/train.csv")
+df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_2/main/test.csv")
+```
+
+### Check Nulls
+```{r}
+#check for number of null values in data
+sapply(df_train, function(x) sum(is.na(x)))
+sapply(df_test, function(x) sum(is.na(x)))
+```
+### Check ? Counts
+```{r}
+# No ?'s in education, marital_status, relationship, race, sex, pay_response
+
+print(paste('Train - ? Working Class:', nrow(df_train %>% filter(workclass == '?')), sep=' '))
+print(paste('Train - ? Occupation:', nrow(df_train %>% filter(occupation == '?')), sep=' '))
+print(paste('Train - ? Native Country:', nrow(df_train %>% filter(native_country == '?')), sep=' '))
+
+print(paste('Test  - ? Working Class:', nrow(df_test %>% filter(workclass == '?')), sep=' '))
+print(paste('Test  - ? Occupation:', nrow(df_test %>% filter(occupation == '?')), sep=' '))
+print(paste('Test  - ? Native Country:', nrow(df_test %>% filter(native_country == '?')), sep=' '))
+```
+### Removing ? from Train and Test
+```{r}
+# Let's make a version 2 of train and test that has no ?'s
+df_train2 <- df_train %>% filter(workclass != '?')
+df_train2 <- df_train2 %>% filter(occupation != '?')
+df_train2 <- df_train2 %>% filter(native_country != '?')
+
+df_test2 <- df_test %>% filter(workclass != '?')
+df_test2 <- df_test2 %>% filter(occupation != '?')
+df_test2 <- df_test2 %>% filter(native_country != '?')
+```
+
+### Change all strings to factors
+```{r}
+df_train2 <- as.data.frame(unclass(df_train2), stringsAsFactors = TRUE)
+df_test2 <- as.data.frame(unclass(df_test2), stringsAsFactors = TRUE)
+```
+
+### Check large factors - education
+```{r}
+# Let's try and see if we can collapse some levels of the education factor
+
+# First, look at train ----------------------------------------------------------------------------------------------------
+
+# Establish factor order
+edu_levels <- c('Preschool','1st-4th','5th-6th','7th-8th','9th','10th','11th','12th','HS-grad','Some-college','Assoc-voc','Assoc-acdm','Bachelors','Masters','Prof-school','Doctorate')
+df_train2 <- df_train2 %>%
+  mutate(education = fct_relevel(education, edu_levels))
+
+# Plot pay_response proportion by level
+ggplot(df_train2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Train')
+
+# New levels of factors (any unlisted here are staying single)
+grades <- c('1st-4th','5th-6th','7th-8th','9th','10th','11th','12th')
+grads <- c('HS-grad','Some-college')
+assocs <- c('Assoc-voc','Assoc-acdm')
+docs <- c('Prof-school','Doctorate')
+
+# Mutate education factor into new levels
+df_train2 <- df_train2 %>% mutate(
+  education = case_when(
+      education == 'Preschool' ~ 'Preschool',
+      education %in% grades ~ 'Grade School',
+      education %in% grads ~ 'HS Grads',
+      education %in% assocs ~ 'Assocs',
+      education == 'Bachelors' ~ 'Bachelors',
+      education == 'Masters' ~ 'Masters',
+      education %in% docs ~ 'Docs/Profs'
+    )
+)
+
+# Establish new factor order
+edu_levels <- c('Preschool', 'Grade School', 'HS Grads', 'Assocs', 'Bachelors', 'Masters', 'Docs/Profs')
+df_train2 <- df_train2 %>% mutate(education = factor(education), education = fct_relevel(education, edu_levels))
+  
+# Plot final levels
+ggplot(df_train2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Train')
+
+# Repeat process with test ----------------------------------------------------------------------------------------------
+edu_levels <- c('Preschool','1st-4th','5th-6th','7th-8th','9th','10th','11th','12th','HS-grad','Some-college','Assoc-voc','Assoc-acdm','Bachelors','Masters','Prof-school','Doctorate')
+df_test2 <- df_test2 %>%
+  mutate(education = fct_relevel(education, edu_levels))
+
+# Plot pay_response proportion by level
+ggplot(df_test2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Test')
+
+# While the distributions here are slightly different, let's keep the same groups
+grades <- c('1st-4th','5th-6th','7th-8th','9th','10th','11th','12th')
+grads <- c('HS-grad','Some-college')
+assocs <- c('Assoc-voc','Assoc-acdm')
+docs <- c('Prof-school','Doctorate')
+
+# Mutate education factor into new levels
+df_test2 <- df_test2 %>% mutate(
+  education = case_when(
+      education == 'Preschool' ~ 'Preschool',
+      education %in% grades ~ 'Grade School',
+      education %in% grads ~ 'HS Grads',
+      education %in% assocs ~ 'Assocs',
+      education == 'Bachelors' ~ 'Bachelors',
+      education == 'Masters' ~ 'Masters',
+      education %in% docs ~ 'Docs/Profs'
+    )
+)
+
+# Establish new factor order
+edu_levels <- c('Preschool', 'Grade School', 'HS Grads', 'Assocs', 'Bachelors', 'Masters', 'Docs/Profs')
+df_test2 <- df_test2 %>% mutate(education = factor(education), education = fct_relevel(education, edu_levels))
+  
+# Plot final levels
+ggplot(df_test2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Test')
+```
+
+### Check large factors - workclass
+```{r workclass, fig.width=10, fig.height=6}
+ggarrange(
+ggplot(df_train2, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Workclass - Train') + theme(legend.position='none'),
+ggplot(df_test2, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Workclass - Test') + theme(legend.position='none'),
+nrow=1)
+# There aren't too many levels here, and I can't find any pair I would really like to collapse together.
+```
+
+### Check large factors - occupation
+```{r occupation, fig.width=10, fig.height=6}
+ggarrange(
+ggplot(df_train2, aes(y=occupation, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by occupation - Train') + theme(legend.position='none'),
+ggplot(df_test2, aes(y=occupation, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by occupation - Test') + theme(legend.position='none'),
+nrow=1)
+# While there are a lot of levels here, I don't see any groups that would make sense to collapse together.
+```
+
+### Check large factors - marital_status
+```{r marital_status, fig.width=10, fig.height=6}
+ggarrange(
+ggplot(df_train2, aes(y=marital_status, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by marital_status - Train') + theme(legend.position='none'),
+ggplot(df_test2, aes(y=marital_status, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by marital_status - Test') + theme(legend.position='none'),
+nrow=1)
+# There's not a ton of levels and I don't see any groups that would make sense to collapse together.
+```
+
+### Check large factors - native_country
+```{r}
+# First, let's look at train ---------------------------------------------------------------------------------------------
+
+ggplot(df_train2, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - Train')
+
+# There are way too many levels here to keep. The most logical way to collapse these would be by continent
+# Grouping by asia, europe, north america, and latin america, we are left with Outlying-US territories and 'South' -- this could be South Africa or South Korea...it is also weird that there are no African countries.
+
+asia <- c('Cambodia','China','Hong','India','Iran','Japan','Laos','Philippines','Taiwan','Thailand','Vietnam')
+europe <- c('England','France','Germany','Greece','Holand-Netherlands','Hungary','Ireland','Italy','Poland','Portugal','Scotland','Yugoslavia')
+namerica <- c('Canada','United-States')
+lamerica <- c('Cuba','Dominican-Republic','El-Salvador','Guatemala','Haiti','Honduras','Jamaica','Mexico','Nicaragua','Puerto-Rico','Trinadad&Tobago','Columbia','Ecuador','Peru')
+islands <- c('Outlying-US(Guam-USVI-etc)')
+
+df_train2 <- df_train2 %>% mutate(
+  native_country = case_when(
+      native_country %in% asia ~ 'Asia',
+      native_country %in% europe ~ 'Europe',
+      native_country %in% namerica ~ 'North America',
+      native_country %in% lamerica ~ 'Latin America',
+      native_country %in% islands ~ 'US Territories',
+      TRUE ~ 'South'
+    )
+)
+
+ggplot(df_train2, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - Train')
+
+# Next, let's look at test -----------------------------------------------------------------------------------------------
+
+ggplot(df_test2, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - test')
+
+# There are way too many levels here to keep. The most logical way to collapse these would be by continent
+# Grouping by asia, europe, north america, and latin america, we are left with Outlying-US territories and 'South' -- this could be South Africa or South Korea...it is also weird that there are no African countries.
+
+asia <- c('Cambodia','China','Hong','India','Iran','Japan','Laos','Philippines','Taiwan','Thailand','Vietnam')
+europe <- c('England','France','Germany','Greece','Holand-Netherlands','Hungary','Ireland','Italy','Poland','Portugal','Scotland','Yugoslavia')
+namerica <- c('Canada','United-States')
+lamerica <- c('Cuba','Dominican-Republic','El-Salvador','Guatemala','Haiti','Honduras','Jamaica','Mexico','Nicaragua','Puerto-Rico','Trinadad&Tobago','Columbia','Ecuador','Peru')
+islands <- c('Outlying-US(Guam-USVI-etc)')
+
+df_test2 <- df_test2 %>% mutate(
+  native_country = case_when(
+      native_country %in% asia ~ 'Asia',
+      native_country %in% europe ~ 'Europe',
+      native_country %in% namerica ~ 'North America',
+      native_country %in% lamerica ~ 'Latin America',
+      native_country %in% islands ~ 'US Territories',
+      TRUE ~ 'South'
+    )
+)
+
+ggplot(df_test2, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - test')
+```
+
+### Capital Gain & Capital Loss
+```{r}
+# We found that no person has nonzero gain and loss (figured as much), so how can we calculate cap_net?
+df_train2 %>% filter(capital_gain != 0 & capital_loss != 0)
+df_test2 %>% filter(capital_gain != 0 & capital_loss != 0)
+
+# Since we know that cap_gain and cap_loss cannot exist together, simply calculating cap_gain - cap_loss would give us what we want...two possible cases:
+#   Capital_gain exists: Capital_net = X - 0
+#   Capital_loss exists: Capital_net = 0 - X
+
+df_train2$capital_net = df_train2$capital_gain - df_train2$capital_loss
+df_test2$capital_net = df_test2$capital_gain - df_test2$capital_loss
+
+df_train2 <- select (df_train2,-c(capital_gain, capital_loss))
+df_test2 <- select (df_test2,-c(capital_gain, capital_loss))
+```
+
+### Education & Education_Num
+```{r}
+# Let's check for multicollinearity
+
+ggplot(df_train2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Train')
+
+ggplot(df_test2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Test')
+
+# Here, you can see that these two variables are directly related, as expected...so we can only include one. Since education is best viewed through factors (there isn't a numerical relationship between education levels), we'll keep education.
+
+df_train2 <- select (df_train2,-c(education_num))
+df_test2 <- select (df_test2,-c(education_num))
+```
+
+### Plot Matrix
+```{r}
+ggpairs(df_train2, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
+
+ggpairs(df_test2, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
+```
+
+### Fix Test Typo
+```{r}
+# Just realized the pay_response variable is stored as '<=50K.' and '>50K.'. Let's get rid of those periods
+df_test2 <- df_test2 %>% mutate(pay_response = ifelse(pay_response == '<=50K.', '<=50K', '>50K'))
+```
+
+### Response Variable Balance
+```{r}
+print(paste('Percentage of positive responses in Train: ',
+            round((nrow(df_train2 %>% filter(pay_response == '>50K')) / nrow(df_train2)) * 100,2),
+            '%', sep=''))
+print(paste('Percentage of positive responses in Test: ',
+            round((nrow(df_test2 %>% filter(pay_response == '>50K')) / nrow(df_test2)) * 100,2),
+            '%', sep=''))
+```
+
+### What's Next?
+1. We should look through the factor variables for any evidence of collinearity.
+2. We should consider if variables make sense to include in the model (fnlwgt).
