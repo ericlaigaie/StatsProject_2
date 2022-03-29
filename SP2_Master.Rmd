@@ -33,6 +33,22 @@ df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_
 sapply(df_train, function(x) sum(is.na(x)))
 sapply(df_test, function(x) sum(is.na(x)))
 ```
+
+###summary tables
+```{r}
+#create summary
+summary(df_train)
+str(df_train)
+summary(df_test)
+str(df_train)
+
+#count number of levels
+levelcount <- as.data.frame(t(df_train%>% summarise_all(n_distinct)))
+colnames(levelcount) <- c('Level Count')
+print(levelcount)
+
+```
+
 ### Check ? Counts
 ```{r}
 # No ?'s in education, marital_status, relationship, race, sex, pay_response
