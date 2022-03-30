@@ -32,6 +32,7 @@ df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_
 #check for number of null values in data
 sapply(df_train, function(x) sum(is.na(x)))
 sapply(df_test, function(x) sum(is.na(x)))
+
 ```
 
 ###summary tables
@@ -40,12 +41,17 @@ sapply(df_test, function(x) sum(is.na(x)))
 summary(df_train)
 str(df_train)
 summary(df_test)
-str(df_train)
+str(df_test) # Update this from train to test.
 
 #count number of levels
 levelcount <- as.data.frame(t(df_train%>% summarise_all(n_distinct)))
 colnames(levelcount) <- c('Level Count')
 print(levelcount)
+
+#added code to count the levels for test.
+levelcount_tst <- as.data.frame(t(df_test%>% summarise_all(n_distinct)))
+colnames(levelcount_tst) <- c('Level Count')
+print(levelcount_tst)
 
 ```
 
