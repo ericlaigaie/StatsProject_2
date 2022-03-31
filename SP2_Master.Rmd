@@ -77,6 +77,8 @@ df_train2 <- df_train2 %>% filter(native_country != '?')
 df_test2 <- df_test %>% filter(workclass != '?')
 df_test2 <- df_test2 %>% filter(occupation != '?')
 df_test2 <- df_test2 %>% filter(native_country != '?')
+
+#Created 2 new dataframes: df_train2 and df_test2
 ```
 
 ### Change all strings to factors
@@ -85,11 +87,41 @@ df_train2 <- as.data.frame(unclass(df_train2), stringsAsFactors = TRUE)
 df_test2 <- as.data.frame(unclass(df_test2), stringsAsFactors = TRUE)
 ```
 
+```{r}
+
+#Rayon getting familiar with the data. Will remove from final project.
+#str(df_train2)
+
+# ? and Never-worked was removed in df_train2 and df_test2
+
+# length(unique(df_train$workclass))
+# length(unique(df_train2$workclass))
+
+# unique(df_train$workclass)
+# unique(df_train2$workclass)
+
+#Another way to analyze the data.
+# install.packages("psych")
+# library(psych)
+# view(describe(df_train2))
+
+# Count of <=50K and >50K
+# sum(with(df_train2,pay_response == "<=50K")) # 22654
+# sum(with(df_train2,pay_response == ">50K")) #7508
+# 
+# sum(with(df_test2,pay_response == "<=50K.")) #11360
+# sum(with(df_test2,pay_response == ">50K.")) #3700
+# 
+# str(df_test2)
+
+```
+
 ### Check large factors - education
 ```{r}
 # Let's try and see if we can collapse some levels of the education factor
 
 # First, look at train ----------------------------------------------------------------------------------------------------
+
 
 # Establish factor order
 edu_levels <- c('Preschool','1st-4th','5th-6th','7th-8th','9th','10th','11th','12th','HS-grad','Some-college','Assoc-voc','Assoc-acdm','Bachelors','Masters','Prof-school','Doctorate')
@@ -158,6 +190,9 @@ df_test2 <- df_test2 %>% mutate(education = factor(education), education = fct_r
   
 # Plot final levels
 ggplot(df_test2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Test')
+
+
+#Response variable (>50K) increases as the level of school increases!
 ```
 
 ### Check large factors - workclass
@@ -167,6 +202,8 @@ ggplot(df_train2, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill
 ggplot(df_test2, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Workclass - Test') + theme(legend.position='none'),
 nrow=1)
 # There aren't too many levels here, and I can't find any pair I would really like to collapse together.
+#Rayon - I agree with this. no clear way of collapsing it.All Workclass included our variable of interest. Exception is Without Pay in Training
+
 ```
 
 ### Check large factors - occupation
@@ -185,6 +222,8 @@ ggplot(df_train2, aes(y=marital_status, fill=pay_response)) + geom_bar(position=
 ggplot(df_test2, aes(y=marital_status, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by marital_status - Test') + theme(legend.position='none'),
 nrow=1)
 # There's not a ton of levels and I don't see any groups that would make sense to collapse together.
+# Rayon I agree
+
 ```
 
 ### Check large factors - native_country
@@ -257,6 +296,7 @@ df_test2$capital_net = df_test2$capital_gain - df_test2$capital_loss
 
 df_train2 <- dplyr::select(df_train2,-c(capital_gain, capital_loss))
 df_test2 <- dplyr::select(df_test2,-c(capital_gain, capital_loss))
+
 ```
 
 ### Education & Education_Num
@@ -294,10 +334,46 @@ print(paste('Percentage of positive responses in Train: ',
 print(paste('Percentage of positive responses in Test: ',
             round((nrow(df_test2 %>% filter(pay_response == '>50K')) / nrow(df_test2)) * 100,2),
             '%', sep=''))
+
 ```
 
 ### What's Next?
 1. We should look through the factor variables for any evidence of collinearity.
+
+```{r workclass vs. education}
+
+#Mosaic Plot
+#Don't observe any multicullinearity
+
+t(aggregate(workclass~education,data=df_train2,summary))
+plot(df_train2$workclass~df_train2$education,col=c("orange","blue"))
+```
+
+```{r maritalstatus vs education}
+#Mosaic Plot
+#Don't observe any multicullinearity
+
+t(aggregate(marital_status~education,data=df_train2,summary))
+plot(df_train2$marital_status~df_train2$education,col=c("orange","blue"))
+
+```
+
+```{r Race vs education}
+
+t(aggregate(race~education,data=df_train2,summary))
+plot(df_train2$race~df_train2$education,col=c("orange","blue"))
+
+df_train2 %>%
+  count(race, education) %>%
+  ggplot(mapping = aes(x = race, y = education)) +
+  geom_tile(mapping = aes(fill = n))
+
+```
+
+
+
+
+
 2. We should consider if variables make sense to include in the model (fnlwgt).
 
 ### Objective 1 - Stepwise & LASSO Models
