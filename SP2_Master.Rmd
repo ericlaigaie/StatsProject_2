@@ -523,9 +523,10 @@ lda.fit
 predmodel.train.lda <-  predict(lda.fit, data=df_train2)
 predmodel.train.lda
 
+# Create table to get prediction accuracy
 table(Predicted <- predmodel.train.lda$class, pay_response = df_train2$pay_response)
 
-
+# print out histogram to show split
 ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class)
 
 #Test
