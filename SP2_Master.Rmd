@@ -510,3 +510,29 @@ plot(roc.step,col="orange", add = TRUE)
 legend("bottomright",legend=c("Lasso","Stepwise"),col=c("blue", "orange"),lty=1,lwd=1)
 abline(a=0, b= 1)
 ```
+
+#LDA CODE 
+
+```{r LDA}
+
+lda.fit = lda(pay_response~., data = df_train2[,-1])
+
+lda.fit
+
+##Predict Training Results
+predmodel.train.lda <-  predict(lda.fit, data=df_train2)
+predmodel.train.lda
+
+table(Predicted <- predmodel.train.lda$class, pay_response = df_train2$pay_response)
+
+
+ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class)
+
+#Test
+predmodel.test.lda = predict(lda.fit, newdata=df_test2)
+table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
+
+
+```
+
+
