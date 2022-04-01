@@ -544,4 +544,52 @@ cm_test <-  confusionMatrix(conf_matrix_test)
 cm_test
 ```
 
+### LDA Assumptions
+
+Assumption for equal variances between groups for each variable
+```{r LDAassumptions1, fig.height=6, fig.width=10}
+lda_eq_var <- function(myVar) {
+ggplot(df_train2, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')) + 
+  geom_boxplot() + 
+  theme(legend.position='none') +
+  labs(title=paste({{myVar}}, "by pay_response", sep=' '))
+}
+
+ggarrange(lda_eq_var("age"),lda_eq_var("fnlwgt"),lda_eq_var("hours_per_week"),lda_eq_var("capital_net"),nrow=2,ncol=2)
+
+lda_eq_var_cov <- function(myVarX, myVarY) {
+ggplot(df_train2, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
+    geom_point() + 
+    stat_ellipse() +
+    labs(title=paste({{myVarX}},'vs.',{{myVarY}},'by outcome', sep=' ')) +
+    theme(legend.position='none')
+}
+
+ggarrange(lda_eq_var_cov("age","fnlwgt"), 
+          lda_eq_var_cov("age","hours_per_week"),
+          lda_eq_var_cov("age","capital_net"),
+          lda_eq_var_cov("fnlwgt","hours_per_week"),
+          lda_eq_var_cov("fnlwgt","capital_net"),
+          lda_eq_var_cov("hours_per_week","capital_net"),
+          nrow=2, ncol=3
+)
+```
+
+Normality assumption
+```{r}
+pay.yes <- subset(df_train2, pay_response == ">50K") 
+pay.no <- subset(df_train2, pay_response == "<=50K")
+
+variable_1 <- c("age", "fnlwgt", "hours_per_week", "capital_net") 
+par(mfrow = c(2, 2)) 
+for(i in variable_1) { 
+    qqnorm(pay.yes[[i]]); qqline(pay.yes[[i]], col = 2) 
+}
+
+par(mfrow = c(2, 2)) 
+for(i in variable_1) { 
+    qqnorm(pay.no[[i]]); qqline(pay.no[[i]], col = 2) 
+}
+```
+
 
