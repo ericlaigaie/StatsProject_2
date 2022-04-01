@@ -525,6 +525,11 @@ predmodel.train.lda
 
 # Create table to get prediction accuracy
 table(Predicted <- predmodel.train.lda$class, pay_response = df_train2$pay_response)
+conf_matrix_train <-  table(Predicted <- predmodel.train.lda$class, pay_response = df_train2$pay_response)
+
+sensitivity(conf_matrix_train)
+specificity(conf_matrix_train)
+
 
 # print out histogram to show split
 ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class)
@@ -533,6 +538,10 @@ ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class)
 predmodel.test.lda = predict(lda.fit, newdata=df_test2)
 table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
 
+conf_matrix_test <- table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
+
+sensitivity(conf_matrix_test)
+specificity(conf_matrix_test)
 
 ```
 
