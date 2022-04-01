@@ -540,9 +540,8 @@ table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
 
 conf_matrix_test <- table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
 
-sensitivity(conf_matrix_test)
-specificity(conf_matrix_test)
-
+cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test
 ```
 
 
