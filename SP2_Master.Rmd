@@ -327,9 +327,9 @@ df_test2 <- dplyr::select(df_test2,-c(capital_gain, capital_loss))
 ```{r}
 # Let's check for multicollinearity
 
-ggplot(df_train2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Train')
+ggplot(df_train2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Train') + scale_y_discrete("education", limits = c("Preschool" , "Grade School", "HS Grads", "Assocs", "Bachelors" , "Masters" , "Docs/Profs"))
 
-ggplot(df_test2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Test')
+ggplot(df_test2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Test') + scale_y_discrete("education", limits = c("Preschool" , "Grade School", "HS Grads", "Assocs", "Bachelors" , "Masters" , "Docs/Profs"))
 
 # Here, you can see that these two variables are directly related, as expected...so we can only include one. Since education is best viewed through factors (there isn't a numerical relationship between education levels), we'll keep education.
 
