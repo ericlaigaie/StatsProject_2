@@ -22,6 +22,9 @@ library(glmnet)
 library(corrplot)
 library(RColorBrewer)
 library(pheatmap)
+library(psych)
+
+
 ```
 
 ### Data is stored in a .data and .test file. Let's read them as .csvs & define the column names.
@@ -37,7 +40,7 @@ df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_
 df_test <- df_test %>% mutate(pay_response = ifelse(pay_response == '<=50K.', '<=50K', '>50K'))
 ```
 
-### A.2) Check Nulls
+### A.2) Check for NA's
 ```{r}
 #check for number of null values in data
 sapply(df_train, function(x) sum(is.na(x)))
@@ -100,36 +103,24 @@ df_test2 <- as.data.frame(unclass(df_test2), stringsAsFactors = TRUE)
 
 ```{r}
 
-#Rayon getting familiar with the data. Will remove from final project.
-#str(df_train2)
 
-# ? and Never-worked was removed in df_train2 and df_test2
+#Gather the counts of the response variables in each dataset
 
-# length(unique(df_train$workclass))
-# length(unique(df_train2$workclass))
-
-# unique(df_train$workclass)
-# unique(df_train2$workclass)
-
-#Another way to analyze the data.
-# install.packages("psych")
-# library(psych)
-# view(describe(df_train2))
+view(describe(df_train2))
 
 # Count of <=50K and >50K
-# sum(with(df_train2,pay_response == "<=50K")) # 22654
-# sum(with(df_train2,pay_response == ">50K")) #7508
-# 
-# sum(with(df_test2,pay_response == "<=50K.")) #11360
-# sum(with(df_test2,pay_response == ">50K.")) #3700
-# 
-# str(df_test2)
+sum(with(df_train2,pay_response == "<=50K")) # 22654
+sum(with(df_train2,pay_response == ">50K")) #7508
+
+sum(with(df_test2,pay_response == "<=50K")) #11360
+sum(with(df_test2,pay_response == ">50K")) #3700
+
 
 ```
 
 
 ###EDA Exploratory Data Analysis
-###Will look for multicollinearity, ways to reduce levels in our categorialc responses and removing columns in our clean output.
+###Will look for multicollinearity, ways to reduce levels in our categorical responses and removing columns in our clean output.
 
 ###This section check correlation of continous values
 ```{r}
@@ -172,6 +163,7 @@ pheatmap(x,annotation_col=data.frame(Pay=cluster.train.y),annotation_colors=list
 
 ```
 ### Check large factors - education
+
 ```{r}
 # Let's try and see if we can collapse some levels of the education factor
 
@@ -413,6 +405,7 @@ ggpairs(df_trainclean, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response)
 
 ggpairs(df_testclean, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
 #DY - what is this used for?
+#Answer(Rayon) - Looking for Multicollinearity among the continuous variables.
 ```
 
 ### Response Variable Balance
@@ -432,18 +425,29 @@ print(paste('Percentage of positive responses in Test: ',
 ```{r workclass vs. education}
 
 #Mosaic Plot
-#Don't observe any multicullinearity
+#Didn't observe any collinearity among the workclass and education variables.
 
 t(aggregate(workclass~education,data=df_trainclean,summary))
-plot(df_trainclean$workclass~df_trainclean$education,col=c("orange","blue"))
+plot(df_trainclean$workclass~df_trainclean$education,col=c("orange","blue", "green", "red", "yellow"))
+
+count <- table(df_trainclean$workclass, df_trainclean$education)
+plot(count, col=c("orange","blue", "green", "red", "yellow", "purple"))
+
 ```
+
+
+
 
 ```{r maritalstatus vs education}
 #Mosaic Plot
-#Don't observe any multicullinearity
+#Didn't observe any collinearity among the maritalstatus and education variables.
 
 t(aggregate(marital_status~education,data=df_trainclean,summary))
 plot(df_trainclean$marital_status~df_trainclean$education,col=c("orange","blue"))
+
+
+count <- t(table(df_trainclean$marital_status, df_trainclean$education))
+plot(count, col=c("orange","blue", "green", "red"))
 
 ```
 
@@ -452,15 +456,32 @@ plot(df_trainclean$marital_status~df_trainclean$education,col=c("orange","blue")
 t(aggregate(race~education,data=df_trainclean,summary))
 plot(df_trainclean$race~df_trainclean$education,col=c("orange","blue"))
 
+count <- t(table(df_trainclean$race, df_trainclean$education))
+plot(count, col=c("orange","blue", "green", "red", "yellow"))
+
+
 df_trainclean %>%
   count(race, education) %>%
   ggplot(mapping = aes(x = race, y = education)) +
   geom_tile(mapping = aes(fill = n))
 
+# Observed no multicollinearity among the variables race and education
 #We observe race is heavily skewed to race=White 
 ```
 
+```{r race vs Marital status}
+count <- t(table(df_trainclean$race, df_trainclean$marital_status))
+plot(count, col=c("orange","blue", "green", "red", "yellow"))
 
+#No evidence of collinearity among race and marital status
+
+df_trainclean %>% group_by(race) %>% summarise(count = n())
+```
+
+```{r}
+df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
+
+```
 
 
 
