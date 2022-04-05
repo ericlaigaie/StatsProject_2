@@ -875,7 +875,7 @@ specificity(conf_matrix_train)
 
 
 # print out histogram to show split
-ldahist(predmodel.train.qdax$x[,1], g= predmodel.train.qdax$class)
+#ldahist(predmodel.train.qdax$x[,1], g= predmodel.train.qdax$class)
 
 #Test
 predmodel.test.qdax = predict(qda.fit, newdata=df_testcleanlogx)
