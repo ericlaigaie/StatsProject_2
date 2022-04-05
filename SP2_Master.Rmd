@@ -677,6 +677,7 @@ abline(a=0, b= 1)
 
 Assumption for equal variances between groups for each variable
 ```{r LDAassumptions1, fig.height=6, fig.width=10}
+
 lda_eq_var <- function(myVar) {
 ggplot(df_trainclean, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')) + 
   geom_boxplot() + 
@@ -731,4 +732,170 @@ for(i in variable_1) {
 }
 ```
 
+# LOG of LDA code since assumptions failed for LDA with variables
+# LDA LOGIC
+
+```{r}
+df_traincleanlog <- df_trainclean[, c(2, 4, 11, 13, 14)]
+df_testcleanlog <- df_testclean[, c(2, 4, 11, 13, 14)]
+
+df_traincleanlog$logage <-  log(df_traincleanlog$age)
+df_traincleanlog$logfnlwgt <-  log(df_traincleanlog$fnlwgt)
+df_traincleanlog$loghours_per_week <-  log(df_traincleanlog$hours_per_week)
+df_traincleanlog$logcapital_net <-  log(df_traincleanlog$capital_net)
+
+df_testcleanlog$logage <-  log(df_testcleanlog$age)
+df_testcleanlog$logfnlwgt <-  log(df_testcleanlog$fnlwgt)
+df_testcleanlog$loghours_per_week <-  log(df_testcleanlog$hours_per_week)
+df_testcleanlog$logcapital_net <-  log(df_testcleanlog$capital_net)
+
+
+lda_eq_var1 <- function(myVar) {
+ggplot(df_traincleanlog, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')) + 
+  geom_boxplot() + 
+  theme(legend.position='none') +
+  labs(title=paste({{myVar}}, "by pay_response", sep=' '))
+}
+
+ggarrange(lda_eq_var1("logage"),lda_eq_var1("logfnlwgt"),lda_eq_var1("loghours_per_week"),lda_eq_var1("logcapital_net"),nrow=2,ncol=2)
+
+lda_eq_var_cov1 <- function(myVarX, myVarY) {
+ggplot(df_traincleanlog, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
+    geom_point() + 
+    stat_ellipse() +
+    labs(title=paste({{myVarX}},'vs.',{{myVarY}},'by outcome', sep=' ')) +
+    theme(legend.position='none')
+}
+
+ggarrange(lda_eq_var_cov1("logage","logfnlwgt"), 
+          lda_eq_var_cov1("logage","loghours_per_week"),
+          lda_eq_var_cov1("logage","logcapital_net"),
+          lda_eq_var_cov1("logfnlwgt","loghours_per_week"),
+          lda_eq_var_cov1("logfnlwgt","logcapital_net"),
+          lda_eq_var_cov1("loghours_per_week","logcapital_net"),
+          nrow=2, ncol=3
+)
+
+pay.yes <- subset(df_traincleanlog, pay_response == ">50K")
+pay.no <- subset(df_traincleanlog, pay_response == "<=50K")
+pay.tyes <- subset(df_testcleanlog, pay_response == ">50K")
+pay.tno <- subset(df_testcleanlog, pay_response == "<=50K")
+
+pay.yes <- subset(pay.yes, logcapital_net != "-Inf" )
+pay.yes <- subset(pay.yes, logcapital_net != "NaN" )
+
+pay.tyes <- subset(pay.tyes, logcapital_net != "-Inf" )
+pay.tyes <- subset(pay.tyes, logcapital_net != "NaN" )
+
+pay.no <- subset(pay.no, logcapital_net != "-Inf" )
+pay.no <- subset(pay.no, logcapital_net != "NaN" )
+
+pay.tno <- subset(pay.tno, logcapital_net != "-Inf" )
+pay.tno <- subset(pay.tno, logcapital_net != "NaN" )
+
+
+variable_2 <- c("logage", "logfnlwgt", "loghours_per_week", "logcapital_net") 
+par(mfrow = c(2, 2)) 
+for(i in variable_2) { 
+    qqnorm(pay.yes[[i]]); qqline(pay.yes[[i]], col = 2) 
+}
+
+par(mfrow = c(2, 2)) 
+for(i in variable_1) { 
+    qqnorm(pay.no[[i]]); qqline(pay.no[[i]], col = 2) 
+}
+
+# what we need for LDA is that the point clouds for the two response categories should have similar elliptical shapes. Gross departures from this would require the use of QDA instead.
+#Conclusion - we'll run QDA for our project.
+
+```
+
+# LDA Code for Logs
+```{r}
+df_traincleanlogx <- rbind(pay.yes, pay.no)
+df_testcleanlogx <- rbind(pay.tyes, pay.tno)
+view(df_traincleanlogx)
+lda.fit = lda(pay_response~., data = df_traincleanlogx[,c(4,6,7,8,9)])
+
+lda.fit
+
+##Predict Training Results
+predmodel.train.ldax <-  predict(lda.fit, data=df_traincleanlogx)
+predmodel.train.ldax
+
+# Create table to get prediction accuracy
+table(Predicted <- predmodel.train.ldax$class, pay_response = df_traincleanlogx$pay_response)
+conf_matrix_train <-  table(Predicted <- predmodel.train.ldax$class, pay_response = df_traincleanlogx$pay_response)
+
+sensitivity(conf_matrix_train)
+specificity(conf_matrix_train)
+
+
+# print out histogram to show split
+ldahist(predmodel.train.ldax$x[,1], g= predmodel.train.ldax$class)
+
+#Test
+predmodel.test.ldax = predict(lda.fit, newdata=df_testcleanlogx)
+table(Predicted=predmodel.test.ldax$class, pay_response=df_testcleanlogx$pay_response)
+
+conf_matrix_test <- table(Predicted=predmodel.test.ldax$class, pay_response=df_testcleanlogx$pay_response)
+
+cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test
+
+
+#ROC for LDA
+preds <- predmodel.test.ldax$posterior
+preds <- as.data.frame(preds)
+
+pred <- prediction(preds[,2],df_testcleanlogx$pay_response)
+roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
+plot(roc.lda)
+abline(a=0, b= 1)
+
+
+```
+#QDA
+
+```{r}
+qda.fit = qda(pay_response~., data = df_traincleanlogx[,c(4,6,7,8,9)])
+
+qda.fit
+
+##Predict Training Results
+predmodel.train.qdax <-  predict(qda.fit, data=df_traincleanlogx)
+predmodel.train.qdax
+
+# Create table to get prediction accuracy
+table(Predicted <- predmodel.train.qdax$class, pay_response = df_traincleanlogx$pay_response)
+conf_matrix_train <-  table(Predicted <- predmodel.train.qdax$class, pay_response = df_traincleanlogx$pay_response)
+
+sensitivity(conf_matrix_train)
+specificity(conf_matrix_train)
+
+
+# print out histogram to show split
+ldahist(predmodel.train.qdax$x[,1], g= predmodel.train.qdax$class)
+
+#Test
+predmodel.test.qdax = predict(qda.fit, newdata=df_testcleanlogx)
+table(Predicted=predmodel.test.qdax$class, pay_response=df_testcleanlogx$pay_response)
+
+conf_matrix_test <- table(Predicted=predmodel.test.qdax$class, pay_response=df_testcleanlogx$pay_response)
+
+cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test
+
+
+#ROC for QDA
+preds <- predmodel.test.qdax$posterior
+preds <- as.data.frame(preds)
+
+pred <- prediction(preds[,2],df_testcleanlogx$pay_response)
+roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
+plot(roc.lda)
+abline(a=0, b= 1)
+
+
+```
 
