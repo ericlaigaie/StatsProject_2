@@ -19,6 +19,12 @@ library(car)
 library(caret)
 library(ROCR)
 library(glmnet)
+library(corrplot)
+library(RColorBrewer)
+library(pheatmap)
+library(psych)
+
+
 ```
 
 ### Data is stored in a .data and .test file. Let's read them as .csvs & define the column names.
@@ -27,7 +33,14 @@ df_train <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject
 df_test <- read.csv("https://raw.githubusercontent.com/ericlaigaie/StatsProject_2/main/test.csv")
 ```
 
-### Check Nulls
+### A) Clean table and check for typos and NAs
+### A.1) Fix Response Typo.  Only in test.
+```{r}
+# Just realized the pay_response variable is stored as '<=50K.' and '>50K.'. Let's get rid of those periods
+df_test <- df_test %>% mutate(pay_response = ifelse(pay_response == '<=50K.', '<=50K', '>50K'))
+```
+
+### A.2) Check for NA's
 ```{r}
 #check for number of null values in data
 sapply(df_train, function(x) sum(is.na(x)))
@@ -35,7 +48,7 @@ sapply(df_test, function(x) sum(is.na(x)))
 
 ```
 
-###summary tables
+### A.3)summary tables
 ```{r}
 #create summary
 summary(df_train)
@@ -55,7 +68,7 @@ print(levelcount_tst)
 
 ```
 
-### Check ? Counts
+### A.4) Check ? Counts
 ```{r}
 # No ?'s in education, marital_status, relationship, race, sex, pay_response
 
@@ -67,7 +80,7 @@ print(paste('Test  - ? Working Class:', nrow(df_test %>% filter(workclass == '?'
 print(paste('Test  - ? Occupation:', nrow(df_test %>% filter(occupation == '?')), sep=' '))
 print(paste('Test  - ? Native Country:', nrow(df_test %>% filter(native_country == '?')), sep=' '))
 ```
-### Removing ? from Train and Test
+### A.5) Removing ? from Train and Test
 ```{r}
 # Let's make a version 2 of train and test that has no ?'s
 df_train2 <- df_train %>% filter(workclass != '?')
@@ -81,42 +94,35 @@ df_test2 <- df_test2 %>% filter(native_country != '?')
 #Created 2 new dataframes: df_train2 and df_test2
 ```
 
-### Change all strings to factors
+### A.6) Change all strings to factors
 ```{r}
 df_train2 <- as.data.frame(unclass(df_train2), stringsAsFactors = TRUE)
 df_test2 <- as.data.frame(unclass(df_test2), stringsAsFactors = TRUE)
 ```
 
+
 ```{r}
 
-#Rayon getting familiar with the data. Will remove from final project.
-#str(df_train2)
 
-# ? and Never-worked was removed in df_train2 and df_test2
+#Gather the counts of the response variables in each dataset
 
-# length(unique(df_train$workclass))
-# length(unique(df_train2$workclass))
-
-# unique(df_train$workclass)
-# unique(df_train2$workclass)
-
-#Another way to analyze the data.
-# install.packages("psych")
-# library(psych)
-# view(describe(df_train2))
+view(describe(df_train2))
 
 # Count of <=50K and >50K
-# sum(with(df_train2,pay_response == "<=50K")) # 22654
-# sum(with(df_train2,pay_response == ">50K")) #7508
-# 
-# sum(with(df_test2,pay_response == "<=50K.")) #11360
-# sum(with(df_test2,pay_response == ">50K.")) #3700
-# 
-# str(df_test2)
+sum(with(df_train2,pay_response == "<=50K")) # 22654
+sum(with(df_train2,pay_response == ">50K")) #7508
+
+sum(with(df_test2,pay_response == "<=50K")) #11360
+sum(with(df_test2,pay_response == ">50K")) #3700
+
 
 ```
 
-###check correlation of continous values
+
+###EDA Exploratory Data Analysis
+###Will look for multicollinearity, ways to reduce levels in our categorical responses and removing columns in our clean output.
+
+###This section check correlation of continous values
 ```{r}
 # Find all numeric variables in cleaned dataset
 numericVars <- which(sapply(df_train2, is.numeric))
@@ -139,8 +145,25 @@ corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
 
 #We observe no correlation among the continuous variables
 ```
+###Heat Map to check clusters
+```{r}
 
+cluster.train.x <- df_train2[,c(2,4,6,12,13,14)]
+cluster.train.y <- df_train2$pay_response
+
+cluster.train.y <- as.factor(as.character(cluster.train.y))
+
+cols <- colorRampPalette(brewer.pal(6, "Set1"))
+x<-t(cluster.train.x)
+colnames(x)<-cluster.train.y
+
+pheatmap(x,annotation_col=data.frame(Pay=cluster.train.y),annotation_colors=list(Pay=c("<=50K"="white",">50K"="green")),scale="row",legend=T,color=colorRampPalette(c("blue","white", "red"), space = "rgb")(30000))
+
+
+
+```
 ### Check large factors - education
+
 ```{r}
 # Let's try and see if we can collapse some levels of the education factor
 
@@ -162,7 +185,7 @@ assocs <- c('Assoc-voc','Assoc-acdm')
 docs <- c('Prof-school','Doctorate')
 
 # Mutate education factor into new levels
-df_train2 <- df_train2 %>% mutate(
+df_trainclean <- df_train2 %>% mutate(
   education = case_when(
       education == 'Preschool' ~ 'Preschool',
       education %in% grades ~ 'Grade School',
@@ -176,10 +199,10 @@ df_train2 <- df_train2 %>% mutate(
 
 # Establish new factor order
 edu_levels <- c('Preschool', 'Grade School', 'HS Grads', 'Assocs', 'Bachelors', 'Masters', 'Docs/Profs')
-df_train2 <- df_train2 %>% mutate(education = factor(education), education = fct_relevel(education, edu_levels))
+df_trainclean <- df_trainclean %>% mutate(education = factor(education), education = fct_relevel(education, edu_levels))
   
 # Plot final levels
-ggplot(df_train2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Train')
+ggplot(df_trainclean, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Train')
 
 # Repeat process with test ----------------------------------------------------------------------------------------------
 edu_levels <- c('Preschool','1st-4th','5th-6th','7th-8th','9th','10th','11th','12th','HS-grad','Some-college','Assoc-voc','Assoc-acdm','Bachelors','Masters','Prof-school','Doctorate')
@@ -196,7 +219,7 @@ assocs <- c('Assoc-voc','Assoc-acdm')
 docs <- c('Prof-school','Doctorate')
 
 # Mutate education factor into new levels
-df_test2 <- df_test2 %>% mutate(
+df_testclean <- df_test2 %>% mutate(
   education = case_when(
       education == 'Preschool' ~ 'Preschool',
       education %in% grades ~ 'Grade School',
@@ -210,10 +233,10 @@ df_test2 <- df_test2 %>% mutate(
 
 # Establish new factor order
 edu_levels <- c('Preschool', 'Grade School', 'HS Grads', 'Assocs', 'Bachelors', 'Masters', 'Docs/Profs')
-df_test2 <- df_test2 %>% mutate(education = factor(education), education = fct_relevel(education, edu_levels))
+df_testclean <- df_testclean %>% mutate(education = factor(education), education = fct_relevel(education, edu_levels))
   
 # Plot final levels
-ggplot(df_test2, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Test')
+ggplot(df_testclean, aes(y=education, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Education - Test')
 
 
 #Response variable (>50K) increases as the level of school increases!
@@ -227,6 +250,22 @@ ggplot(df_test2, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill'
 nrow=1)
 # There aren't too many levels here, and I can't find any pair I would really like to collapse together.
 #Rayon - I agree with this. no clear way of collapsing it.All Workclass included our variable of interest. Exception is Without Pay in Training
+
+#based on the original response for government workclass, we will group local, state and Fed into Government
+df_trainclean$workclass <- recode_factor(df_trainclean$workclass, 
+                                         `State-gov` = "Government", 
+                                         `Local-gov` = "Government", 
+                                         `Federal-gov` = "Government")
+df_testclean$workclass <- recode_factor(df_testclean$workclass, 
+                                         `State-gov` = "Government", 
+                                         `Local-gov` = "Government", 
+                                         `Federal-gov` = "Government")
+
+#Visual of new workclass plot
+ggarrange(
+ggplot(df_trainclean, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Workclass - Train') + theme(legend.position='none'),
+ggplot(df_testclean, aes(y=workclass, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by Workclass - Test') + theme(legend.position='none'),
+nrow=1)
 
 ```
 
@@ -248,6 +287,29 @@ nrow=1)
 # There's not a ton of levels and I don't see any groups that would make sense to collapse together.
 # Rayon I agree
 
+#based on the original responses we observed similar response portions for 1) married with spouse and 2) single who was once married
+#we will group the following 1) Married-spouse = Married-civ-spouse + Married-af-spouse 2) Single_was-married = Widowed, separated, divorced
+df_trainclean$marital_status <- recode_factor(df_trainclean$marital_status, 
+                                         `Widowed` = "Single-was-married", 
+                                         `Separated` = "Single-was-married", 
+                                         `Divorced` = "Single-was-married",
+                                         `Married-AF-spouse` = "Married",
+                                         `Married-civ-spouse` = "Married")
+df_testclean$marital_status <- recode_factor(df_testclean$marital_status, 
+                                         `Widowed` = "Single-was-married", 
+                                         `Separated` = "Single-was-married", 
+                                         `Divorced` = "Single-was-married",
+                                         `Married-AF-spouse` = "Married",
+                                         `Married-civ-spouse` = "Married")
+
+
+#View new marital status levels responses
+ggarrange(
+ggplot(df_trainclean, aes(y=marital_status, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by marital_status - Train') + theme(legend.position='none'),
+ggplot(df_testclean, aes(y=marital_status, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by marital_status - Test') + theme(legend.position='none'),
+nrow=1)
+
+
 ```
 
 ### Check large factors - native_country
@@ -265,7 +327,7 @@ namerica <- c('Canada','United-States')
 lamerica <- c('Cuba','Dominican-Republic','El-Salvador','Guatemala','Haiti','Honduras','Jamaica','Mexico','Nicaragua','Puerto-Rico','Trinadad&Tobago','Columbia','Ecuador','Peru')
 islands <- c('Outlying-US(Guam-USVI-etc)')
 
-df_train2 <- df_train2 %>% mutate(
+df_trainclean <- df_trainclean %>% mutate(
   native_country = case_when(
       native_country %in% asia ~ 'Asia',
       native_country %in% europe ~ 'Europe',
@@ -276,7 +338,7 @@ df_train2 <- df_train2 %>% mutate(
     )
 )
 
-ggplot(df_train2, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - Train')
+ggplot(df_trainclean, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - Train')
 
 # Next, let's look at test -----------------------------------------------------------------------------------------------
 
@@ -291,7 +353,7 @@ namerica <- c('Canada','United-States')
 lamerica <- c('Cuba','Dominican-Republic','El-Salvador','Guatemala','Haiti','Honduras','Jamaica','Mexico','Nicaragua','Puerto-Rico','Trinadad&Tobago','Columbia','Ecuador','Peru')
 islands <- c('Outlying-US(Guam-USVI-etc)')
 
-df_test2 <- df_test2 %>% mutate(
+df_testclean <- df_testclean %>% mutate(
   native_country = case_when(
       native_country %in% asia ~ 'Asia',
       native_country %in% europe ~ 'Europe',
@@ -302,7 +364,7 @@ df_test2 <- df_test2 %>% mutate(
     )
 )
 
-ggplot(df_test2, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - test')
+ggplot(df_testclean, aes(y=native_country, fill=pay_response)) + geom_bar(position='fill') + labs(x='pay_response proportion', title='Pay_response Proportions by native_country - test')
 ```
 
 ### Capital Gain & Capital Loss
@@ -315,11 +377,11 @@ df_test2 %>% filter(capital_gain != 0 & capital_loss != 0)
 #   Capital_gain exists: Capital_net = X - 0
 #   Capital_loss exists: Capital_net = 0 - X
 
-df_train2$capital_net = df_train2$capital_gain - df_train2$capital_loss
-df_test2$capital_net = df_test2$capital_gain - df_test2$capital_loss
+df_trainclean$capital_net = df_trainclean$capital_gain - df_trainclean$capital_loss
+df_testclean$capital_net = df_testclean$capital_gain - df_testclean$capital_loss
 
-df_train2 <- dplyr::select(df_train2,-c(capital_gain, capital_loss))
-df_test2 <- dplyr::select(df_test2,-c(capital_gain, capital_loss))
+df_trainclean <- dplyr::select(df_trainclean,-c(capital_gain, capital_loss))
+df_testclean <- dplyr::select(df_testclean,-c(capital_gain, capital_loss))
 
 ```
 
@@ -327,27 +389,23 @@ df_test2 <- dplyr::select(df_test2,-c(capital_gain, capital_loss))
 ```{r}
 # Let's check for multicollinearity
 
-ggplot(df_train2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Train') + scale_y_discrete("education", limits = c("Preschool" , "Grade School", "HS Grads", "Assocs", "Bachelors" , "Masters" , "Docs/Profs"))
+ggplot(df_trainclean, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Train') + scale_y_discrete("education", limits = c("Preschool" , "Grade School", "HS Grads", "Assocs", "Bachelors" , "Masters" , "Docs/Profs"))
 
-ggplot(df_test2, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Test') + scale_y_discrete("education", limits = c("Preschool" , "Grade School", "HS Grads", "Assocs", "Bachelors" , "Masters" , "Docs/Profs"))
+ggplot(df_testclean, aes(y=education, x=education_num)) + geom_boxplot(fill='indianred2') + labs(title='Education_num distribution by Education - Test') + scale_y_discrete("education", limits = c("Preschool" , "Grade School", "HS Grads", "Assocs", "Bachelors" , "Masters" , "Docs/Profs"))
 
 # Here, you can see that these two variables are directly related, as expected...so we can only include one. Since education is best viewed through factors (there isn't a numerical relationship between education levels), we'll keep education.
 
-df_train2 <- dplyr::select(df_train2,-c(education_num))
-df_test2 <- dplyr::select(df_test2,-c(education_num))
+df_trainclean <- dplyr::select(df_trainclean,-c(education_num))
+df_testclean <- dplyr::select(df_testclean,-c(education_num))
 ```
 
 ### Plot Matrix
 ```{r}
-ggpairs(df_train2, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
+ggpairs(df_trainclean, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
 
-ggpairs(df_test2, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
-```
-
-### Fix Test Typo
-```{r}
-# Just realized the pay_response variable is stored as '<=50K.' and '>50K.'. Let's get rid of those periods
-df_test2 <- df_test2 %>% mutate(pay_response = ifelse(pay_response == '<=50K.', '<=50K', '>50K'))
+ggpairs(df_testclean, columns = c(2,4,11,14), ggplot2::aes(colour=pay_response))
+#DY - what is this used for?
+#Answer(Rayon) - Looking for Multicollinearity among the continuous variables.
 ```
 
 ### Response Variable Balance
@@ -367,34 +425,63 @@ print(paste('Percentage of positive responses in Test: ',
 ```{r workclass vs. education}
 
 #Mosaic Plot
-#Don't observe any multicullinearity
+#Didn't observe any collinearity among the workclass and education variables.
 
-t(aggregate(workclass~education,data=df_train2,summary))
-plot(df_train2$workclass~df_train2$education,col=c("orange","blue"))
+t(aggregate(workclass~education,data=df_trainclean,summary))
+plot(df_trainclean$workclass~df_trainclean$education,col=c("orange","blue", "green", "red", "yellow"))
+
+count <- table(df_trainclean$workclass, df_trainclean$education)
+plot(count, col=c("orange","blue", "green", "red", "yellow", "purple"))
+
 ```
+
+
+
 
 ```{r maritalstatus vs education}
 #Mosaic Plot
-#Don't observe any multicullinearity
+#Didn't observe any collinearity among the maritalstatus and education variables.
 
-t(aggregate(marital_status~education,data=df_train2,summary))
-plot(df_train2$marital_status~df_train2$education,col=c("orange","blue"))
+t(aggregate(marital_status~education,data=df_trainclean,summary))
+plot(df_trainclean$marital_status~df_trainclean$education,col=c("orange","blue"))
+
+
+count <- t(table(df_trainclean$marital_status, df_trainclean$education))
+plot(count, col=c("orange","blue", "green", "red"))
 
 ```
 
 ```{r Race vs education}
 
-t(aggregate(race~education,data=df_train2,summary))
-plot(df_train2$race~df_train2$education,col=c("orange","blue"))
+t(aggregate(race~education,data=df_trainclean,summary))
+plot(df_trainclean$race~df_trainclean$education,col=c("orange","blue"))
 
-df_train2 %>%
+count <- t(table(df_trainclean$race, df_trainclean$education))
+plot(count, col=c("orange","blue", "green", "red", "yellow"))
+
+
+df_trainclean %>%
   count(race, education) %>%
   ggplot(mapping = aes(x = race, y = education)) +
   geom_tile(mapping = aes(fill = n))
 
+# Observed no multicollinearity among the variables race and education
+#We observe race is heavily skewed to race=White 
 ```
 
+```{r race vs Marital status}
+count <- t(table(df_trainclean$race, df_trainclean$marital_status))
+plot(count, col=c("orange","blue", "green", "red", "yellow"))
 
+#No evidence of collinearity among race and marital status
+
+df_trainclean %>% group_by(race) %>% summarise(count = n())
+```
+
+```{r}
+df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
+
+```
 
 
 
@@ -403,24 +490,26 @@ df_train2 %>%
 ### Objective 1 - Stepwise & LASSO Models
 ```{r}
 # Create the model with selection
-full.log<-glm(pay_response~.,family="binomial",data=df_train2)
+full.log<-glm(pay_response~.,family="binomial",data=df_trainclean)
 step.log<-full.log %>% stepAIC(trace=FALSE)
 
 # Summary of model
 summary(step.log)
+coef(step.log)
+vif(step.log)
 
 # Odds ratios of model
 exp(cbind("Odds ratio" = coef(step.log), confint.default(step.log, level = 0.95)))
 
 # Make predictions on model
-fit.pred.step<-predict(step.log,newdata=df_test2,type="response")
+fit.pred.step<-predict(step.log,newdata=df_testclean,type="response")
 
 # Set cutoff and make classifications from predictions
 cutoff<- 0.5
 class.step<-factor(ifelse(fit.pred.step>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
 
 # Print confusion matrix
-conf.step<-table(class.step,df_test2$pay_response)
+conf.step<-table(class.step,df_testclean$pay_response)
 cm.step <- confusionMatrix(conf.step)
 cm.step
 
@@ -431,7 +520,7 @@ step.accuracies <- c()
 # Loop through cutoffs and find confusion matrix and accuracy of new classifications
 for (i in step.cutoffs) {
   curr.class.step <- factor(ifelse(fit.pred.step>i,">50K","<=50K"),levels=c("<=50K",">50K"))
-  curr.conf.step <- table(curr.class.step,df_test2$pay_response)
+  curr.conf.step <- table(curr.class.step,df_testclean$pay_response)
   curr.cm.step <- confusionMatrix(curr.conf.step)
   
   step.accuracies <- append(step.accuracies, 100*curr.cm.step$overall[1])
@@ -458,8 +547,8 @@ ggplot(step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) +
 
 ```{r}
 # Prepare matrices
-dat.train.x <- model.matrix(pay_response~.-1,df_train2)
-dat.train.y<-df_train2[,13]
+dat.train.x <- model.matrix(pay_response~.-1,df_trainclean)
+dat.train.y<-df_trainclean[,13]
 
 # Do cross-validation and plot
 cvfit <- cv.glmnet(dat.train.x, dat.train.y, family = "binomial", type.measure = "class", nlambda = 1000)
@@ -477,7 +566,7 @@ cvfit$lambda.min
 finalmodel<-glmnet(dat.train.x, dat.train.y, family = "binomial",lambda=cvfit$lambda.min)
 
 #Test set predictions & confusion matrix
-dat.test.x<-model.matrix(pay_response~.-1,df_test2)
+dat.test.x<-model.matrix(pay_response~.-1,df_testclean)
 fit.pred.lasso <- predict(finalmodel, newx = dat.test.x, type = "response")
 
 # Set cutoff and make classifications off of predictions
@@ -485,7 +574,7 @@ cutoff<-0.5
 class.lasso<-factor(ifelse(fit.pred.lasso>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
 
 #Confusion Matrix for Lasso
-conf.lasso<-table(class.lasso,df_test2$pay_response)
+conf.lasso<-table(class.lasso,df_testclean$pay_response)
 confusionMatrix(conf.lasso)
 
 # Test different cutoffs - create vectors to store cutoffs and accuracies
@@ -495,7 +584,7 @@ lasso.accuracies <- c()
 # Loop through cutoffs and find confusion matrix and accuracy of new classifications
 for (i in lasso.cutoffs) {
   curr.class.lasso <- factor(ifelse(fit.pred.lasso>i,">50K","<=50K"),levels=c("<=50K",">50K"))
-  curr.conf.lasso <- table(curr.class.lasso,df_test2$pay_response)
+  curr.conf.lasso <- table(curr.class.lasso,df_testclean$pay_response)
   curr.cm.lasso <- confusionMatrix(curr.conf.lasso)
   
   lasso.accuracies <- append(lasso.accuracies, 100*curr.cm.lasso$overall[1])
@@ -522,11 +611,11 @@ ggplot(lasso.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) +
 
 ```{r}
 # Prepare LASSO ROC Curve
-results.lasso<-prediction(fit.pred.lasso, df_test2$pay_response,label.ordering=c("<=50K",">50K"))
+results.lasso<-prediction(fit.pred.lasso, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
 roc.lasso = performance(results.lasso, measure = "tpr", x.measure = "fpr")
 
 # Prepare Step ROC Curve
-results.step<-prediction(fit.pred.step, df_test2$pay_response,label.ordering=c("<=50K",">50K"))
+results.step<-prediction(fit.pred.step, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
 roc.step = performance(results.step, measure = "tpr", x.measure = "fpr")
 
 plot(roc.lasso)
@@ -535,21 +624,26 @@ legend("bottomright",legend=c("Lasso","Stepwise"),col=c("blue", "orange"),lty=1,
 abline(a=0, b= 1)
 ```
 
+#Objective 2
+#Complex variables to see if model improves
+
+
+
 #LDA CODE 
 
 ```{r LDA}
 
-lda.fit = lda(pay_response~., data = df_train2[,-1])
+lda.fit = lda(pay_response~., data = df_trainclean[,-1])
 
 lda.fit
 
 ##Predict Training Results
-predmodel.train.lda <-  predict(lda.fit, data=df_train2)
+predmodel.train.lda <-  predict(lda.fit, data=df_trainclean)
 predmodel.train.lda
 
 # Create table to get prediction accuracy
-table(Predicted <- predmodel.train.lda$class, pay_response = df_train2$pay_response)
-conf_matrix_train <-  table(Predicted <- predmodel.train.lda$class, pay_response = df_train2$pay_response)
+table(Predicted <- predmodel.train.lda$class, pay_response = df_trainclean$pay_response)
+conf_matrix_train <-  table(Predicted <- predmodel.train.lda$class, pay_response = df_trainclean$pay_response)
 
 sensitivity(conf_matrix_train)
 specificity(conf_matrix_train)
@@ -559,21 +653,33 @@ specificity(conf_matrix_train)
 ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class)
 
 #Test
-predmodel.test.lda = predict(lda.fit, newdata=df_test2)
-table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
+predmodel.test.lda = predict(lda.fit, newdata=df_testclean)
+table(Predicted=predmodel.test.lda$class, pay_response=df_testclean$pay_response)
 
-conf_matrix_test <- table(Predicted=predmodel.test.lda$class, pay_response=df_test2$pay_response)
+conf_matrix_test <- table(Predicted=predmodel.test.lda$class, pay_response=df_testclean$pay_response)
 
 cm_test <-  confusionMatrix(conf_matrix_test)
 cm_test
+
+
+#ROC for LDA
+preds <- predmodel.test.lda$posterior
+preds <- as.data.frame(preds)
+
+pred <- prediction(preds[,2],df_test2$pay_response)
+roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
+plot(roc.lda)
+abline(a=0, b= 1)
+
 ```
 
 ### LDA Assumptions
 
 Assumption for equal variances between groups for each variable
 ```{r LDAassumptions1, fig.height=6, fig.width=10}
+
 lda_eq_var <- function(myVar) {
-ggplot(df_train2, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')) + 
+ggplot(df_trainclean, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')) + 
   geom_boxplot() + 
   theme(legend.position='none') +
   labs(title=paste({{myVar}}, "by pay_response", sep=' '))
@@ -582,7 +688,7 @@ ggplot(df_train2, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')
 ggarrange(lda_eq_var("age"),lda_eq_var("fnlwgt"),lda_eq_var("hours_per_week"),lda_eq_var("capital_net"),nrow=2,ncol=2)
 
 lda_eq_var_cov <- function(myVarX, myVarY) {
-ggplot(df_train2, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
+ggplot(df_trainclean, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
     geom_point() + 
     stat_ellipse() +
     labs(title=paste({{myVarX}},'vs.',{{myVarY}},'by outcome', sep=' ')) +
@@ -599,10 +705,20 @@ ggarrange(lda_eq_var_cov("age","fnlwgt"),
 )
 ```
 
-Normality assumption
+###Final ROC for outputs
 ```{r}
-pay.yes <- subset(df_train2, pay_response == ">50K") 
-pay.no <- subset(df_train2, pay_response == "<=50K")
+plot(roc.lda)
+plot(roc.lasso,col="green", add = TRUE)
+plot(roc.step,col="orange", add = TRUE)
+legend("bottomright",legend=c("LDA","Lasso","Stepwise"),col=c("black","green", "orange"),lty=1,lwd=1)
+abline(a=0, b= 1)
+
+```
+
+###Normality assumption
+```{r}
+pay.yes <- subset(df_trainclean, pay_response == ">50K") 
+pay.no <- subset(df_trainclean, pay_response == "<=50K")
 
 variable_1 <- c("age", "fnlwgt", "hours_per_week", "capital_net") 
 par(mfrow = c(2, 2)) 
@@ -616,4 +732,170 @@ for(i in variable_1) {
 }
 ```
 
+# LOG of LDA code since assumptions failed for LDA with variables
+# LDA LOGIC
+
+```{r}
+df_traincleanlog <- df_trainclean[, c(2, 4, 11, 13, 14)]
+df_testcleanlog <- df_testclean[, c(2, 4, 11, 13, 14)]
+
+df_traincleanlog$logage <-  log(df_traincleanlog$age)
+df_traincleanlog$logfnlwgt <-  log(df_traincleanlog$fnlwgt)
+df_traincleanlog$loghours_per_week <-  log(df_traincleanlog$hours_per_week)
+df_traincleanlog$logcapital_net <-  log(df_traincleanlog$capital_net)
+
+df_testcleanlog$logage <-  log(df_testcleanlog$age)
+df_testcleanlog$logfnlwgt <-  log(df_testcleanlog$fnlwgt)
+df_testcleanlog$loghours_per_week <-  log(df_testcleanlog$hours_per_week)
+df_testcleanlog$logcapital_net <-  log(df_testcleanlog$capital_net)
+
+
+lda_eq_var1 <- function(myVar) {
+ggplot(df_traincleanlog, aes_string(x='pay_response', y={{myVar}}, fill='pay_response')) + 
+  geom_boxplot() + 
+  theme(legend.position='none') +
+  labs(title=paste({{myVar}}, "by pay_response", sep=' '))
+}
+
+ggarrange(lda_eq_var1("logage"),lda_eq_var1("logfnlwgt"),lda_eq_var1("loghours_per_week"),lda_eq_var1("logcapital_net"),nrow=2,ncol=2)
+
+lda_eq_var_cov1 <- function(myVarX, myVarY) {
+ggplot(df_traincleanlog, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
+    geom_point() + 
+    stat_ellipse() +
+    labs(title=paste({{myVarX}},'vs.',{{myVarY}},'by outcome', sep=' ')) +
+    theme(legend.position='none')
+}
+
+ggarrange(lda_eq_var_cov1("logage","logfnlwgt"), 
+          lda_eq_var_cov1("logage","loghours_per_week"),
+          lda_eq_var_cov1("logage","logcapital_net"),
+          lda_eq_var_cov1("logfnlwgt","loghours_per_week"),
+          lda_eq_var_cov1("logfnlwgt","logcapital_net"),
+          lda_eq_var_cov1("loghours_per_week","logcapital_net"),
+          nrow=2, ncol=3
+)
+
+pay.yes <- subset(df_traincleanlog, pay_response == ">50K")
+pay.no <- subset(df_traincleanlog, pay_response == "<=50K")
+pay.tyes <- subset(df_testcleanlog, pay_response == ">50K")
+pay.tno <- subset(df_testcleanlog, pay_response == "<=50K")
+
+pay.yes <- subset(pay.yes, logcapital_net != "-Inf" )
+pay.yes <- subset(pay.yes, logcapital_net != "NaN" )
+
+pay.tyes <- subset(pay.tyes, logcapital_net != "-Inf" )
+pay.tyes <- subset(pay.tyes, logcapital_net != "NaN" )
+
+pay.no <- subset(pay.no, logcapital_net != "-Inf" )
+pay.no <- subset(pay.no, logcapital_net != "NaN" )
+
+pay.tno <- subset(pay.tno, logcapital_net != "-Inf" )
+pay.tno <- subset(pay.tno, logcapital_net != "NaN" )
+
+
+variable_2 <- c("logage", "logfnlwgt", "loghours_per_week", "logcapital_net") 
+par(mfrow = c(2, 2)) 
+for(i in variable_2) { 
+    qqnorm(pay.yes[[i]]); qqline(pay.yes[[i]], col = 2) 
+}
+
+par(mfrow = c(2, 2)) 
+for(i in variable_1) { 
+    qqnorm(pay.no[[i]]); qqline(pay.no[[i]], col = 2) 
+}
+
+# what we need for LDA is that the point clouds for the two response categories should have similar elliptical shapes. Gross departures from this would require the use of QDA instead.
+#Conclusion - we'll run QDA for our project.
+
+```
+
+# LDA Code for Logs
+```{r}
+df_traincleanlogx <- rbind(pay.yes, pay.no)
+df_testcleanlogx <- rbind(pay.tyes, pay.tno)
+view(df_traincleanlogx)
+lda.fit = lda(pay_response~., data = df_traincleanlogx[,c(4,6,7,8,9)])
+
+lda.fit
+
+##Predict Training Results
+predmodel.train.ldax <-  predict(lda.fit, data=df_traincleanlogx)
+predmodel.train.ldax
+
+# Create table to get prediction accuracy
+table(Predicted <- predmodel.train.ldax$class, pay_response = df_traincleanlogx$pay_response)
+conf_matrix_train <-  table(Predicted <- predmodel.train.ldax$class, pay_response = df_traincleanlogx$pay_response)
+
+sensitivity(conf_matrix_train)
+specificity(conf_matrix_train)
+
+
+# print out histogram to show split
+ldahist(predmodel.train.ldax$x[,1], g= predmodel.train.ldax$class)
+
+#Test
+predmodel.test.ldax = predict(lda.fit, newdata=df_testcleanlogx)
+table(Predicted=predmodel.test.ldax$class, pay_response=df_testcleanlogx$pay_response)
+
+conf_matrix_test <- table(Predicted=predmodel.test.ldax$class, pay_response=df_testcleanlogx$pay_response)
+
+cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test
+
+
+#ROC for LDA
+preds <- predmodel.test.ldax$posterior
+preds <- as.data.frame(preds)
+
+pred <- prediction(preds[,2],df_testcleanlogx$pay_response)
+roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
+plot(roc.lda)
+abline(a=0, b= 1)
+
+
+```
+#QDA
+
+```{r}
+qda.fit = qda(pay_response~., data = df_traincleanlogx[,c(4,6,7,8,9)])
+
+qda.fit
+
+##Predict Training Results
+predmodel.train.qdax <-  predict(qda.fit, data=df_traincleanlogx)
+predmodel.train.qdax
+
+# Create table to get prediction accuracy
+table(Predicted <- predmodel.train.qdax$class, pay_response = df_traincleanlogx$pay_response)
+conf_matrix_train <-  table(Predicted <- predmodel.train.qdax$class, pay_response = df_traincleanlogx$pay_response)
+
+sensitivity(conf_matrix_train)
+specificity(conf_matrix_train)
+
+
+# print out histogram to show split
+#ldahist(predmodel.train.qdax$x[,1], g= predmodel.train.qdax$class)
+
+#Test
+predmodel.test.qdax = predict(qda.fit, newdata=df_testcleanlogx)
+table(Predicted=predmodel.test.qdax$class, pay_response=df_testcleanlogx$pay_response)
+
+conf_matrix_test <- table(Predicted=predmodel.test.qdax$class, pay_response=df_testcleanlogx$pay_response)
+
+cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test
+
+
+#ROC for QDA
+preds <- predmodel.test.qdax$posterior
+preds <- as.data.frame(preds)
+
+pred <- prediction(preds[,2],df_testcleanlogx$pay_response)
+roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
+plot(roc.lda)
+abline(a=0, b= 1)
+
+
+```
 
