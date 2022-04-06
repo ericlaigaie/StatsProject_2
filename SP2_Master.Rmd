@@ -483,6 +483,12 @@ df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 
 ```
 
+```{r}
+# Remove fnlwgt --- Doesn't make sense logically and Turner said it was okay - Eric
+df_trainclean <- df_trainclean %>% dplyr::select(-fnlwgt)
+df_testclean <- df_testclean %>% dplyr::select(-fnlwgt)
+```
+
 
 
 2. We should consider if variables make sense to include in the model (fnlwgt).
@@ -490,7 +496,7 @@ df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 ### Objective 1 - Stepwise & LASSO Models
 ```{r}
 # Create the model with selection
-full.log<-glm(pay_response~.,family="binomial",data=df_trainclean)
+full.log<-glm(pay_response~.-id,family="binomial",data=df_trainclean)
 step.log<-full.log %>% stepAIC(trace=FALSE)
 
 # Summary of model
@@ -548,7 +554,7 @@ ggplot(step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) +
 ```{r}
 # Prepare matrices
 dat.train.x <- model.matrix(pay_response~.-1,df_trainclean)
-dat.train.y<-df_trainclean[,13]
+dat.train.y<-df_trainclean[,12]
 
 # Do cross-validation and plot
 cvfit <- cv.glmnet(dat.train.x, dat.train.y, family = "binomial", type.measure = "class", nlambda = 1000)
@@ -564,6 +570,8 @@ cvfit$lambda.min
 #For final model predictions go ahead and refit lasso using entire
 #data set
 finalmodel<-glmnet(dat.train.x, dat.train.y, family = "binomial",lambda=cvfit$lambda.min)
+
+finalmodel$beta
 
 #Test set predictions & confusion matrix
 dat.test.x<-model.matrix(pay_response~.-1,df_testclean)
@@ -897,5 +905,65 @@ plot(roc.lda)
 abline(a=0, b= 1)
 
 
+```
+
+# Interaction Model
+```{r}
+# fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age, family='binomial', data=df_trainclean) # 82.25% accuracy
+
+
+# fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age + capital_net:workclass + native_country:sex, family='binomial', data=df_trainclean) # 82.97% accuracy
+
+# fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age + capital_net:workclass + native_country:sex + education, family='binomial', data=df_trainclean) # 83.96% accuracy
+
+fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age + capital_net:workclass + native_country:sex + education + education:age + hours_per_week:capital_net, family='binomial', data=df_traincleanlog)
+
+# I'm not really impressed with the accuracy here....not sure if I need to be using log data
+
+summary(fit.int)
+
+# Make predictions on model
+fit.pred.int<-predict(fit.int,newdata=df_testclean,type="response")
+
+# Set cutoff and make classifications from predictions
+cutoff<- 0.5
+class.int<-factor(ifelse(fit.pred.int>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
+
+# Print confusion matrix
+conf.int<-table(class.int,df_testclean$pay_response)
+cm.int <- confusionMatrix(conf.int)
+cm.int
+
+# Test different cutoffs - create vectors to store cutoffs and accuracies
+int.cutoffs <- seq(.1,.9,.01)
+int.accuracies <- c()
+
+# Loop through cutoffs and find confusion matrix and accuracy of new classifications
+for (i in int.cutoffs) {
+  curr.class.int <- factor(ifelse(fit.pred.int>i,">50K","<=50K"),levels=c("<=50K",">50K"))
+  curr.conf.int <- table(curr.class.int,df_testclean$pay_response)
+  curr.cm.int <- confusionMatrix(curr.conf.int)
+  
+  int.accuracies <- append(int.accuracies, 100*curr.cm.int$overall[1])
+}
+
+# Create dataframe from vectors and establish max value for each column
+int.cutoff_acc_loop <- data.frame('cutoffs' = int.cutoffs, 'accuracies' = int.accuracies)
+int.maxacc <- max(int.cutoff_acc_loop$accuracies)
+int.maxcut <- int.cutoff_acc_loop %>% filter(accuracies == int.maxacc) %>% pull(cutoffs)
+
+# Create accuracy geom_line chart and mark maximum accuracy
+ggplot(int.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
+  geom_line(size=2, color='indianred2') +
+  labs(x='Classiciation Cutoff', y='Accuracy', title='Accuracy by Cutoff Value - Interactin Based') +
+  geom_point(aes(y=int.maxacc, x=int.maxcut), size=5, color='black') +
+  geom_text(
+    aes(label=
+          ifelse(accuracies == int.maxacc,
+                 paste(round(accuracies,2),'%, cutoff = ',int.maxcut,sep='')
+                 ,'')
+        ),hjust=-.2, vjust=0
+    )
+```
 ```
 
