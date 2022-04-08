@@ -148,21 +148,28 @@ corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
 ###Heat Map to check clusters
 ```{r}
 
-cluster.train.x <- df_train2[,c(2,4,6,12,13,14)]
+#cluster.train.x <- df_train2[,c(2,4,6,12,13,14)]
+#cluster.train.y <- df_train2$pay_response
+#cluster.train.y <- as.factor(as.character(cluster.train.y))
+
+df_train_phmap <- as.data.frame(unclass(df_train2), stringsAsFactors = TRUE)
+cluster.train.x <- df_train_phmap[,c(2,4,12,13,14)]
 cluster.train.y <- df_train2$pay_response
 
-cluster.train.y <- as.factor(as.character(cluster.train.y))
-
-cols <- colorRampPalette(brewer.pal(6, "Set1"))
+cols <- colorRampPalette(brewer.pal(9, "Set1"))
 x<-t(cluster.train.x)
-colnames(x)<-cluster.train.y
+pos_df = data.frame("Pay" = cluster.train.y)
+colnames(x) <- rownames(pos_df)
 
-pheatmap(x,annotation_col=data.frame(Pay=cluster.train.y),annotation_colors=list(Pay=c("<=50K"="white",">50K"="green")),scale="row",legend=T,color=colorRampPalette(c("blue","white", "red"), space = "rgb")(30000))
+#pheatmap(x,cluster_rows = F, annotation_col=data.frame("Pay"=cluster.train.y),annotation_colors=list("Pay"=c("<=50K"="white",">50K"="green")),scale="row",legend=T,color=colorRampPalette(c("blue","white", "red"), space = "rgb")(30000))
 
+pheatmap(x,cluster_rows = T, annotation_col=pos_df,annotation_colors=list("Pay"=c("<=50K"="white",">50K"="green")),scale="row",legend=T,color=colorRampPalette(c("blue","white", "red"), space = "rgb")(30000))
 
 
 ```
 ### Check large factors - education
+
+
 
 ```{r}
 # Let's try and see if we can collapse some levels of the education factor
