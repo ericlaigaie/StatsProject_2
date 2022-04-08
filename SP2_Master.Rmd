@@ -487,6 +487,12 @@ df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 # Remove fnlwgt --- Doesn't make sense logically and Turner said it was okay - Eric
 df_trainclean <- df_trainclean %>% dplyr::select(-fnlwgt)
 df_testclean <- df_testclean %>% dplyr::select(-fnlwgt)
+
+df_trainclean <- df_trainclean %>% dplyr::select(-id)
+df_testclean <- df_testclean %>% dplyr::select(-id)
+
+df_trainclean <- df_trainclean %>% dplyr::select(-relationship)
+df_testclean <- df_testclean %>% dplyr::select(-relationship)
 ```
 
 
@@ -495,9 +501,16 @@ df_testclean <- df_testclean %>% dplyr::select(-fnlwgt)
 
 ### Objective 1 - Stepwise & LASSO Models
 ```{r}
-# Create the model with selection
-full.log<-glm(pay_response~.-id,family="binomial",data=df_trainclean)
+# Full Dataset - Stepwise Model
+full.log<-glm(pay_response~.,family="binomial",data=df_trainclean)
 step.log<-full.log %>% stepAIC(trace=FALSE)
+
+# Check Cook's Distance
+Step.cd <- cooks.distance(step.log)
+idx <- which(Step.cd >1) # row numbers
+Step.cd[idx]
+
+# All good here
 
 # Summary of model
 summary(step.log)
@@ -536,6 +549,7 @@ for (i in step.cutoffs) {
 step.cutoff_acc_loop <- data.frame('cutoffs' = step.cutoffs, 'accuracies' = step.accuracies)
 step.maxacc <- max(step.cutoff_acc_loop$accuracies)
 step.maxcut <- step.cutoff_acc_loop %>% filter(accuracies == step.maxacc) %>% pull(cutoffs)
+step.maxcut <- int.maxcut[1]
 
 # Create accuracy geom_line chart and mark maximum accuracy
 ggplot(step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
@@ -544,11 +558,100 @@ ggplot(step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) +
   geom_point(aes(y=step.maxacc, x=step.maxcut), size=5, color='black') +
   geom_text(
     aes(label=
-          ifelse(accuracies == step.maxacc,
+          ifelse(cutoffs == step.maxcut,
                  paste(round(accuracies,2),'%, cutoff = ',step.maxcut,sep='')
                  ,'')
         ),hjust=-.2, vjust=0
     )
+```
+
+```{r}
+# We have an idea to cut out occupation because it's similar to workclass and has many levels that decreases interpretability
+
+# We feel like Occupation and Workclass are similar, and one could be removed....let's try Occupation
+df_trainclean_noocc <- df_trainclean %>% dplyr::select(-occupation)
+df_testclean_noocc <- df_testclean %>% dplyr::select(-occupation)
+
+# No_Occ Dataset - Stepwise Model
+No_Occ.log<-glm(pay_response~.,family="binomial",data=df_trainclean_noocc)
+No_Occ.step.log<-No_Occ.log %>% stepAIC(trace=FALSE)
+
+# Check Cook's Distance
+No_Occ.cd <- cooks.distance(No_Occ.step.log)
+idx <- which(No_Occ.cd >1)
+No_Occ.cd[idx]
+
+# All good here
+
+# Summary of model
+summary(No_Occ.step.log)
+coef(No_Occ.step.log)
+vif(No_Occ.step.log)
+
+# Odds ratios of model
+exp(cbind("Odds ratio" = coef(No_Occ.step.log), confint.default(No_Occ.step.log, level = 0.95)))
+
+# Make predictions on model
+No_Occ.fit.pred.step<-predict(No_Occ.step.log,newdata=df_testclean_noocc,type="response")
+
+# Set cutoff and make classifications from predictions
+cutoff<- 0.5
+No_Occ.class.step<-factor(ifelse(No_Occ.fit.pred.step>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
+
+# Print confusion matrix
+No_Occ.conf.step<-table(No_Occ.class.step,df_testclean_noocc$pay_response)
+No_Occ.cm.step <- confusionMatrix(No_Occ.conf.step)
+No_Occ.cm.step
+
+# Test different cutoffs - create vectors to store cutoffs and accuracies
+step.cutoffs <- seq(.1,.9,.01)
+No_Occ.step.accuracies <- c()
+
+# Loop through cutoffs and find confusion matrix and accuracy of new classifications
+for (i in step.cutoffs) {
+  curr.class.step <- factor(ifelse(No_Occ.fit.pred.step>i,">50K","<=50K"),levels=c("<=50K",">50K"))
+  curr.conf.step <- table(curr.class.step,df_testclean$pay_response)
+  curr.cm.step <- confusionMatrix(curr.conf.step)
+  
+  No_Occ.step.accuracies <- append(No_Occ.step.accuracies, 100*curr.cm.step$overall[1])
+}
+
+# Create dataframe from vectors and establish max value for each column
+No_Occ.step.cutoff_acc_loop <- data.frame('cutoffs' = step.cutoffs, 'accuracies' = No_Occ.step.accuracies)
+No_Occ.step.maxacc <- max(No_Occ.step.cutoff_acc_loop$accuracies)
+No_Occ.step.maxcut <- No_Occ.step.cutoff_acc_loop %>% filter(accuracies == No_Occ.step.maxacc) %>% pull(cutoffs)
+No_Occ.step.maxcut <- No_Occ.step.maxcut[1]
+
+# Create accuracy geom_line chart and mark maximum accuracy
+ggplot(No_Occ.step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
+  geom_line(size=2, color='indianred2') +
+  labs(x='Classiciation Cutoff', y='Accuracy', title='Accuracy by Cutoff Value - Stepwise') +
+  geom_point(aes(y=No_Occ.step.maxacc, x=No_Occ.step.maxcut), size=5, color='black') +
+  geom_text(
+    aes(label=
+          ifelse(cutoffs == No_Occ.step.maxcut,
+                 paste(round(accuracies,2),'%, cutoff = ',No_Occ.step.maxcut,sep='')
+                 ,'')
+        ),hjust=-.2, vjust=0
+    )
+```
+
+```{r}
+# Here, we can see that removing occupation does little to no damage on the model, but increases interpretability by a lot. One important variable to note is education...no levels are significant.
+
+# Let's prepare a ROC curve for both models
+# Prepare Step ROC Curve
+full.results.step<-prediction(fit.pred.step, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
+full.roc.step = performance(results.step, measure = "tpr", x.measure = "fpr")
+
+# Prepare NoOcc Step ROC Curve
+No_Occ.results.step<-prediction(No_Occ.fit.pred.step, df_testclean_noocc$pay_response,label.ordering=c("<=50K",">50K"))
+No_Occ.roc.step = performance(No_Occ.results.step, measure = "tpr", x.measure = "fpr")
+
+plot(full.roc.step, main='Stepwise ROC Curves - Full & No_Occ')
+plot(No_Occ.roc.step,col="orange", add = TRUE)
+legend("bottomright",legend=c("Full Stepwise","No_Occ Stepwise"),col=c("blue", "orange"),lty=1,lwd=1)
+abline(a=0, b= 1)
 ```
 
 ```{r}
@@ -693,7 +796,7 @@ ggplot(df_trainclean, aes_string(x='pay_response', y={{myVar}}, fill='pay_respon
   labs(title=paste({{myVar}}, "by pay_response", sep=' '))
 }
 
-ggarrange(lda_eq_var("age"),lda_eq_var("fnlwgt"),lda_eq_var("hours_per_week"),lda_eq_var("capital_net"),nrow=2,ncol=2)
+ggarrange(lda_eq_var("age"),lda_eq_var("hours_per_week"),lda_eq_var("capital_net"),nrow=2,ncol=2)
 
 lda_eq_var_cov <- function(myVarX, myVarY) {
 ggplot(df_trainclean, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
@@ -703,11 +806,8 @@ ggplot(df_trainclean, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_resp
     theme(legend.position='none')
 }
 
-ggarrange(lda_eq_var_cov("age","fnlwgt"), 
-          lda_eq_var_cov("age","hours_per_week"),
+ggarrange(lda_eq_var_cov("age","hours_per_week"),
           lda_eq_var_cov("age","capital_net"),
-          lda_eq_var_cov("fnlwgt","hours_per_week"),
-          lda_eq_var_cov("fnlwgt","capital_net"),
           lda_eq_var_cov("hours_per_week","capital_net"),
           nrow=2, ncol=3
 )
@@ -748,12 +848,10 @@ df_traincleanlog <- df_trainclean[, c(2, 4, 11, 13, 14)]
 df_testcleanlog <- df_testclean[, c(2, 4, 11, 13, 14)]
 
 df_traincleanlog$logage <-  log(df_traincleanlog$age)
-df_traincleanlog$logfnlwgt <-  log(df_traincleanlog$fnlwgt)
 df_traincleanlog$loghours_per_week <-  log(df_traincleanlog$hours_per_week)
 df_traincleanlog$logcapital_net <-  log(df_traincleanlog$capital_net)
 
 df_testcleanlog$logage <-  log(df_testcleanlog$age)
-df_testcleanlog$logfnlwgt <-  log(df_testcleanlog$fnlwgt)
 df_testcleanlog$loghours_per_week <-  log(df_testcleanlog$hours_per_week)
 df_testcleanlog$logcapital_net <-  log(df_testcleanlog$capital_net)
 
@@ -765,7 +863,7 @@ ggplot(df_traincleanlog, aes_string(x='pay_response', y={{myVar}}, fill='pay_res
   labs(title=paste({{myVar}}, "by pay_response", sep=' '))
 }
 
-ggarrange(lda_eq_var1("logage"),lda_eq_var1("logfnlwgt"),lda_eq_var1("loghours_per_week"),lda_eq_var1("logcapital_net"),nrow=2,ncol=2)
+ggarrange(lda_eq_var1("logage"),lda_eq_var1("loghours_per_week"),lda_eq_var1("logcapital_net"),nrow=2,ncol=2)
 
 lda_eq_var_cov1 <- function(myVarX, myVarY) {
 ggplot(df_traincleanlog, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_response')) + 
@@ -775,11 +873,8 @@ ggplot(df_traincleanlog, aes_string(x = {{myVarX}}, y = {{myVarY}}, col = 'pay_r
     theme(legend.position='none')
 }
 
-ggarrange(lda_eq_var_cov1("logage","logfnlwgt"), 
-          lda_eq_var_cov1("logage","loghours_per_week"),
+ggarrange(lda_eq_var_cov1("logage","loghours_per_week"),
           lda_eq_var_cov1("logage","logcapital_net"),
-          lda_eq_var_cov1("logfnlwgt","loghours_per_week"),
-          lda_eq_var_cov1("logfnlwgt","logcapital_net"),
           lda_eq_var_cov1("loghours_per_week","logcapital_net"),
           nrow=2, ncol=3
 )
@@ -802,7 +897,7 @@ pay.tno <- subset(pay.tno, logcapital_net != "-Inf" )
 pay.tno <- subset(pay.tno, logcapital_net != "NaN" )
 
 
-variable_2 <- c("logage", "logfnlwgt", "loghours_per_week", "logcapital_net") 
+variable_2 <- c("logage", "loghours_per_week", "logcapital_net") 
 par(mfrow = c(2, 2)) 
 for(i in variable_2) { 
     qqnorm(pay.yes[[i]]); qqline(pay.yes[[i]], col = 2) 
@@ -909,17 +1004,17 @@ abline(a=0, b= 1)
 
 # Interaction Model
 ```{r}
-# fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age, family='binomial', data=df_trainclean) # 82.25% accuracy
+# Build Interaction Model
+fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + workclass:sex + occupation:marital_status + capital_net:age + capital_net:workclass + native_country:sex + education + education:age + hours_per_week:capital_net, family='binomial', data=df_trainclean)
 
+# Check Cook's Distance
+fit.int.cd <- cooks.distance(fit.int)
+idx <- which(fit.int.cd >1) # row numbers
+fit.int.cd[idx]
 
-# fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age + capital_net:workclass + native_country:sex, family='binomial', data=df_trainclean) # 82.97% accuracy
+# All good here
 
-# fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age + capital_net:workclass + native_country:sex + education, family='binomial', data=df_trainclean) # 83.96% accuracy
-
-fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + marital_status:occupation + workclass:sex + capital_net:age + capital_net:workclass + native_country:sex + education + education:age + hours_per_week:capital_net, family='binomial', data=df_traincleanlog)
-
-# I'm not really impressed with the accuracy here....not sure if I need to be using log data
-
+# Model Summary
 summary(fit.int)
 
 # Make predictions on model
@@ -951,19 +1046,28 @@ for (i in int.cutoffs) {
 int.cutoff_acc_loop <- data.frame('cutoffs' = int.cutoffs, 'accuracies' = int.accuracies)
 int.maxacc <- max(int.cutoff_acc_loop$accuracies)
 int.maxcut <- int.cutoff_acc_loop %>% filter(accuracies == int.maxacc) %>% pull(cutoffs)
+int.maxcut <- int.maxcut[1]
 
 # Create accuracy geom_line chart and mark maximum accuracy
 ggplot(int.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
   geom_line(size=2, color='indianred2') +
-  labs(x='Classiciation Cutoff', y='Accuracy', title='Accuracy by Cutoff Value - Interactin Based') +
+  labs(x='Classiciation Cutoff', y='Accuracy', title='Accuracy by Cutoff Value - Interaction Based') +
   geom_point(aes(y=int.maxacc, x=int.maxcut), size=5, color='black') +
   geom_text(
     aes(label=
-          ifelse(accuracies == int.maxacc,
+          ifelse(cutoffs == int.maxcut,
                  paste(round(accuracies,2),'%, cutoff = ',int.maxcut,sep='')
                  ,'')
         ),hjust=-.2, vjust=0
     )
+
+# Prepare Step ROC Curve
+results.int<-prediction(fit.pred.int, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
+roc.int = performance(results.int, measure = "tpr", x.measure = "fpr")
+
+plot(roc.int, col='Orange', main='ROC Model - Interaction Model')
+legend("bottomright",legend=c('Interaction Model'),col=c("orange"),lty=1,lwd=1)
+abline(a=0, b= 1)
 ```
 ```
 
