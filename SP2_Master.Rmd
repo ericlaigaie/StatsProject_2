@@ -106,7 +106,7 @@ df_test2 <- as.data.frame(unclass(df_test2), stringsAsFactors = TRUE)
 
 #Gather the counts of the response variables in each dataset
 
-view(describe(df_train2))
+describe(df_train2)
 
 # Count of <=50K and >50K
 sum(with(df_train2,pay_response == "<=50K")) # 22654
@@ -478,6 +478,21 @@ plot(count, col=c("orange","blue", "green", "red", "yellow"))
 df_trainclean %>% group_by(race) %>% summarise(count = n())
 ```
 
+```{r relationship and Marital status}
+
+
+count <- t(table(df_trainclean$relationship, df_trainclean$marital_status))
+plot(count, col=c("plum2","light green", "green", "papayawhip", "brown","purple"))
+
+# There is strong evidence of collinearity between race and marital status.
+
+
+```
+
+
+
+
+
 ```{r}
 df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 
@@ -549,7 +564,7 @@ for (i in step.cutoffs) {
 step.cutoff_acc_loop <- data.frame('cutoffs' = step.cutoffs, 'accuracies' = step.accuracies)
 step.maxacc <- max(step.cutoff_acc_loop$accuracies)
 step.maxcut <- step.cutoff_acc_loop %>% filter(accuracies == step.maxacc) %>% pull(cutoffs)
-step.maxcut <- int.maxcut[1]
+step.maxcut <- step.maxcut[1]
 
 # Create accuracy geom_line chart and mark maximum accuracy
 ggplot(step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
@@ -642,7 +657,7 @@ ggplot(No_Occ.step.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracie
 # Let's prepare a ROC curve for both models
 # Prepare Step ROC Curve
 full.results.step<-prediction(fit.pred.step, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
-full.roc.step = performance(results.step, measure = "tpr", x.measure = "fpr")
+full.roc.step = performance(full.results.step, measure = "tpr", x.measure = "fpr")
 
 # Prepare NoOcc Step ROC Curve
 No_Occ.results.step<-prediction(No_Occ.fit.pred.step, df_testclean_noocc$pay_response,label.ordering=c("<=50K",">50K"))
@@ -657,7 +672,7 @@ abline(a=0, b= 1)
 ```{r}
 # Prepare matrices
 dat.train.x <- model.matrix(pay_response~.-1,df_trainclean)
-dat.train.y<-df_trainclean[,12]
+dat.train.y<-df_trainclean[,10]
 
 # Do cross-validation and plot
 cvfit <- cv.glmnet(dat.train.x, dat.train.y, family = "binomial", type.measure = "class", nlambda = 1000)
@@ -828,7 +843,7 @@ abline(a=0, b= 1)
 pay.yes <- subset(df_trainclean, pay_response == ">50K") 
 pay.no <- subset(df_trainclean, pay_response == "<=50K")
 
-variable_1 <- c("age", "fnlwgt", "hours_per_week", "capital_net") 
+variable_1 <- c("age","hours_per_week", "capital_net") 
 par(mfrow = c(2, 2)) 
 for(i in variable_1) { 
     qqnorm(pay.yes[[i]]); qqline(pay.yes[[i]], col = 2) 
@@ -844,8 +859,8 @@ for(i in variable_1) {
 # LDA LOGIC
 
 ```{r}
-df_traincleanlog <- df_trainclean[, c(2, 4, 11, 13, 14)]
-df_testcleanlog <- df_testclean[, c(2, 4, 11, 13, 14)]
+df_traincleanlog <- df_trainclean[, c(1, 8, 10, 11)]
+df_testcleanlog <- df_testclean[, c(1, 8, 10, 11)]
 
 df_traincleanlog$logage <-  log(df_traincleanlog$age)
 df_traincleanlog$loghours_per_week <-  log(df_traincleanlog$hours_per_week)
@@ -918,7 +933,7 @@ for(i in variable_1) {
 df_traincleanlogx <- rbind(pay.yes, pay.no)
 df_testcleanlogx <- rbind(pay.tyes, pay.tno)
 view(df_traincleanlogx)
-lda.fit = lda(pay_response~., data = df_traincleanlogx[,c(4,6,7,8,9)])
+lda.fit = lda(pay_response~., data = df_traincleanlogx[,c(3,5,6,7)])
 
 lda.fit
 
@@ -961,7 +976,7 @@ abline(a=0, b= 1)
 #QDA
 
 ```{r}
-qda.fit = qda(pay_response~., data = df_traincleanlogx[,c(4,6,7,8,9)])
+qda.fit = qda(pay_response~., data = df_traincleanlogx[,c(3,5,6,7)])
 
 qda.fit
 
