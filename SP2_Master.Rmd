@@ -424,14 +424,14 @@ print(paste('Percentage of positive responses in Test: ',
 
 ```{r workclass vs. education}
 
-#Mosaic Plot
-#Didn't observe any collinearity among the workclass and education variables.
+
 
 t(aggregate(workclass~education,data=df_trainclean,summary))
-plot(df_trainclean$workclass~df_trainclean$education,col=c("orange","blue", "green", "red", "yellow"))
-
 count <- table(df_trainclean$workclass, df_trainclean$education)
-plot(count, col=c("orange","blue", "green", "red", "yellow", "purple"))
+plot(count, col=c("plum2","light green", "green", "papayawhip", "brown", off = 20))
+
+
+#Observed a slight collinearity among the workclass and education variables.
 
 ```
 
@@ -439,50 +439,45 @@ plot(count, col=c("orange","blue", "green", "red", "yellow", "purple"))
 
 
 ```{r maritalstatus vs education}
-#Mosaic Plot
-#Didn't observe any collinearity among the maritalstatus and education variables.
+
 
 t(aggregate(marital_status~education,data=df_trainclean,summary))
-plot(df_trainclean$marital_status~df_trainclean$education,col=c("orange","blue"))
-
 
 count <- t(table(df_trainclean$marital_status, df_trainclean$education))
-plot(count, col=c("orange","blue", "green", "red"))
+plot(count, col=c("plum2","light green", "green", "papayawhip", off = 20))
+
+#Didn't observe any collinearity among the maritalstatus and education variables.
 
 ```
 
 ```{r Race vs education}
 
 t(aggregate(race~education,data=df_trainclean,summary))
-plot(df_trainclean$race~df_trainclean$education,col=c("orange","blue"))
-
 count <- t(table(df_trainclean$race, df_trainclean$education))
-plot(count, col=c("orange","blue", "green", "red", "yellow"))
+plot(count, col=c("plum2","light green", "green", "papayawhip", "brown","purple", off = 20))
 
-
-df_trainclean %>%
-  count(race, education) %>%
-  ggplot(mapping = aes(x = race, y = education)) +
-  geom_tile(mapping = aes(fill = n))
 
 # Observed no multicollinearity among the variables race and education
-#We observe race is heavily skewed to race=White 
+# We observe race is heavily skewed to race=White 
 ```
 
 ```{r race vs Marital status}
-count <- t(table(df_trainclean$race, df_trainclean$marital_status))
-plot(count, col=c("orange","blue", "green", "red", "yellow"))
 
-#No evidence of collinearity among race and marital status
+count <- t(table(df_trainclean$race, df_trainclean$marital_status))
+plot(count, col=c("plum2","light green", "green", "papayawhip", "brown", off = 20))
+
+#Slight evidence of collinearity among race and marital status. However, there were more observations for White (85%) than other races in the data.
 
 df_trainclean %>% group_by(race) %>% summarise(count = n())
+
+
 ```
 
 ```{r relationship and Marital status}
 
-
+#Count of relationship vs. Marital Status
 count <- t(table(df_trainclean$relationship, df_trainclean$marital_status))
-plot(count, col=c("plum2","light green", "green", "papayawhip", "brown","purple"))
+plot(count, col=c("plum2","light green", "green", "papayawhip", "brown","purple", off = 20))
 
 # There is strong evidence of collinearity between race and marital status.
 
