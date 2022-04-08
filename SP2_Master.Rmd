@@ -496,8 +496,8 @@ df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 ```{r}
 
 #creating two new variable for LDA
-df_trainclean_lda <- df_trainclean
-df_testclean_lda <- df_testclean
+#df_trainclean_lda <- df_trainclean
+#df_testclean_lda <- df_testclean
 
 # Remove fnlwgt --- Doesn't make sense logically and Turner said it was okay - Eric
 df_trainclean <- df_trainclean %>% dplyr::select(-fnlwgt)
