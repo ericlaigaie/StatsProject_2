@@ -494,6 +494,11 @@ df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 ```
 
 ```{r}
+
+#creating two new variable for LDA
+df_trainclean_lda <- df_trainclean
+df_testclean_lda <- df_testclean
+
 # Remove fnlwgt --- Doesn't make sense logically and Turner said it was okay - Eric
 df_trainclean <- df_trainclean %>% dplyr::select(-fnlwgt)
 df_testclean <- df_testclean %>% dplyr::select(-fnlwgt)
@@ -748,55 +753,85 @@ abline(a=0, b= 1)
 #Objective 2
 #Complex variables to see if model improves
 
+# Interaction Model
+```{r}
+# Build Interaction Model
+fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + workclass:sex + occupation:marital_status + capital_net:age + capital_net:workclass + native_country:sex + education + education:age + hours_per_week:capital_net, family='binomial', data=df_trainclean)
 
+# Check Cook's Distance
+fit.int.cd <- cooks.distance(fit.int)
+idx <- which(fit.int.cd >1) # row numbers
+fit.int.cd[idx]
 
-#LDA CODE 
+# All good here
 
-```{r LDA}
+# Model Summary
+summary(fit.int)
 
-lda.fit = lda(pay_response~., data = df_trainclean[,-1])
+# Make predictions on model
+fit.pred.int<-predict(fit.int,newdata=df_testclean,type="response")
 
-lda.fit
+# Set cutoff and make classifications from predictions
+cutoff<- 0.5
+class.int<-factor(ifelse(fit.pred.int>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
 
-##Predict Training Results
-predmodel.train.lda <-  predict(lda.fit, data=df_trainclean)
-predmodel.train.lda
+# Print confusion matrix
+conf.int<-table(class.int,df_testclean$pay_response)
+cm.int <- confusionMatrix(conf.int)
+cm.int
 
-# Create table to get prediction accuracy
-table(Predicted <- predmodel.train.lda$class, pay_response = df_trainclean$pay_response)
-conf_matrix_train <-  table(Predicted <- predmodel.train.lda$class, pay_response = df_trainclean$pay_response)
+# Test different cutoffs - create vectors to store cutoffs and accuracies
+int.cutoffs <- seq(.1,.9,.01)
+int.accuracies <- c()
 
-sensitivity(conf_matrix_train)
-specificity(conf_matrix_train)
+# Loop through cutoffs and find confusion matrix and accuracy of new classifications
+for (i in int.cutoffs) {
+  curr.class.int <- factor(ifelse(fit.pred.int>i,">50K","<=50K"),levels=c("<=50K",">50K"))
+  curr.conf.int <- table(curr.class.int,df_testclean$pay_response)
+  curr.cm.int <- confusionMatrix(curr.conf.int)
+  
+  int.accuracies <- append(int.accuracies, 100*curr.cm.int$overall[1])
+}
 
+# Create dataframe from vectors and establish max value for each column
+int.cutoff_acc_loop <- data.frame('cutoffs' = int.cutoffs, 'accuracies' = int.accuracies)
+int.maxacc <- max(int.cutoff_acc_loop$accuracies)
+int.maxcut <- int.cutoff_acc_loop %>% filter(accuracies == int.maxacc) %>% pull(cutoffs)
+int.maxcut <- int.maxcut[1]
 
-# print out histogram to show split
-ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class)
+# Create accuracy geom_line chart and mark maximum accuracy
+ggplot(int.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
+  geom_line(size=2, color='indianred2') +
+  labs(x='Classiciation Cutoff', y='Accuracy', title='Accuracy by Cutoff Value - Interaction Based') +
+  geom_point(aes(y=int.maxacc, x=int.maxcut), size=5, color='black') +
+  geom_text(
+    aes(label=
+          ifelse(cutoffs == int.maxcut,
+                 paste(round(accuracies,2),'%, cutoff = ',int.maxcut,sep='')
+                 ,'')
+        ),hjust=-.2, vjust=0
+    )
 
-#Test
-predmodel.test.lda = predict(lda.fit, newdata=df_testclean)
-table(Predicted=predmodel.test.lda$class, pay_response=df_testclean$pay_response)
+# Prepare Step ROC Curve
+results.int<-prediction(fit.pred.int, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
+roc.int = performance(results.int, measure = "tpr", x.measure = "fpr")
 
-conf_matrix_test <- table(Predicted=predmodel.test.lda$class, pay_response=df_testclean$pay_response)
-
-cm_test <-  confusionMatrix(conf_matrix_test)
-cm_test
-
-
-#ROC for LDA
-preds <- predmodel.test.lda$posterior
-preds <- as.data.frame(preds)
-
-pred <- prediction(preds[,2],df_test2$pay_response)
-roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
-plot(roc.lda)
+plot(roc.int, col='Orange', main='ROC Model - Interaction Model')
+legend("bottomright",legend=c('Interaction Model'),col=c("orange"),lty=1,lwd=1)
 abline(a=0, b= 1)
 
 ```
 
-### LDA Assumptions
 
-Assumption for equal variances between groups for each variable
+
+
+# Create another model using just the continuouspredictors and use LDA or QDA.
+
+# LDA/QDA CODE 
+
+## LDA Assumptions
+
+###Assumption for equal variances between groups for each variable
 ```{r LDAassumptions1, fig.height=6, fig.width=10}
 
 lda_eq_var <- function(myVar) {
@@ -821,20 +856,13 @@ ggarrange(lda_eq_var_cov("age","hours_per_week"),
           lda_eq_var_cov("hours_per_week","capital_net"),
           nrow=2, ncol=3
 )
-```
-
-###Final ROC for outputs
-```{r}
-plot(roc.lda)
-plot(roc.lasso,col="green", add = TRUE)
-plot(roc.step,col="orange", add = TRUE)
-legend("bottomright",legend=c("LDA","Lasso","Stepwise"),col=c("black","green", "orange"),lty=1,lwd=1)
-abline(a=0, b= 1)
 
 ```
+
+
 
 ###Normality assumption
-```{r}
+```{r Normality Assumption}
 pay.yes <- subset(df_trainclean, pay_response == ">50K") 
 pay.no <- subset(df_trainclean, pay_response == "<=50K")
 
@@ -850,8 +878,8 @@ for(i in variable_1) {
 }
 ```
 
-# LOG of LDA code since assumptions failed for LDA with variables
-# LDA LOGIC
+# LOG Transformation since assumptions failed for LDA with the continuous explanatory variables
+### LDA LOGIC
 
 ```{r}
 df_traincleanlog <- df_trainclean[, c(1, 8, 10, 11)]
@@ -927,7 +955,7 @@ for(i in variable_1) {
 ```{r}
 df_traincleanlogx <- rbind(pay.yes, pay.no)
 df_testcleanlogx <- rbind(pay.tyes, pay.tno)
-view(df_traincleanlogx)
+#view(df_traincleanlogx)
 lda.fit = lda(pay_response~., data = df_traincleanlogx[,c(3,5,6,7)])
 
 lda.fit
@@ -953,7 +981,7 @@ table(Predicted=predmodel.test.ldax$class, pay_response=df_testcleanlogx$pay_res
 
 conf_matrix_test <- table(Predicted=predmodel.test.ldax$class, pay_response=df_testcleanlogx$pay_response)
 
-cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test <-  confusionMatrix(conf_matrix_test, positive = "<=50K")
 cm_test
 
 
@@ -968,6 +996,7 @@ abline(a=0, b= 1)
 
 
 ```
+
 #QDA
 
 ```{r}
@@ -996,7 +1025,7 @@ table(Predicted=predmodel.test.qdax$class, pay_response=df_testcleanlogx$pay_res
 
 conf_matrix_test <- table(Predicted=predmodel.test.qdax$class, pay_response=df_testcleanlogx$pay_response)
 
-cm_test <-  confusionMatrix(conf_matrix_test)
+cm_test <-  confusionMatrix(conf_matrix_test, positive = ">50K")
 cm_test
 
 
@@ -1005,79 +1034,25 @@ preds <- predmodel.test.qdax$posterior
 preds <- as.data.frame(preds)
 
 pred <- prediction(preds[,2],df_testcleanlogx$pay_response)
-roc.lda = performance(pred, measure = "tpr", x.measure = "fpr")
-plot(roc.lda)
+roc.qda = performance(pred, measure = "tpr", x.measure = "fpr")
+plot(roc.qda)
 abline(a=0, b= 1)
 
 
 ```
 
-# Interaction Model
+###Final ROC for outputs
 ```{r}
-# Build Interaction Model
-fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + workclass:sex + occupation:marital_status + capital_net:age + capital_net:workclass + native_country:sex + education + education:age + hours_per_week:capital_net, family='binomial', data=df_trainclean)
-
-# Check Cook's Distance
-fit.int.cd <- cooks.distance(fit.int)
-idx <- which(fit.int.cd >1) # row numbers
-fit.int.cd[idx]
-
-# All good here
-
-# Model Summary
-summary(fit.int)
-
-# Make predictions on model
-fit.pred.int<-predict(fit.int,newdata=df_testclean,type="response")
-
-# Set cutoff and make classifications from predictions
-cutoff<- 0.5
-class.int<-factor(ifelse(fit.pred.int>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
-
-# Print confusion matrix
-conf.int<-table(class.int,df_testclean$pay_response)
-cm.int <- confusionMatrix(conf.int)
-cm.int
-
-# Test different cutoffs - create vectors to store cutoffs and accuracies
-int.cutoffs <- seq(.1,.9,.01)
-int.accuracies <- c()
-
-# Loop through cutoffs and find confusion matrix and accuracy of new classifications
-for (i in int.cutoffs) {
-  curr.class.int <- factor(ifelse(fit.pred.int>i,">50K","<=50K"),levels=c("<=50K",">50K"))
-  curr.conf.int <- table(curr.class.int,df_testclean$pay_response)
-  curr.cm.int <- confusionMatrix(curr.conf.int)
-  
-  int.accuracies <- append(int.accuracies, 100*curr.cm.int$overall[1])
-}
-
-# Create dataframe from vectors and establish max value for each column
-int.cutoff_acc_loop <- data.frame('cutoffs' = int.cutoffs, 'accuracies' = int.accuracies)
-int.maxacc <- max(int.cutoff_acc_loop$accuracies)
-int.maxcut <- int.cutoff_acc_loop %>% filter(accuracies == int.maxacc) %>% pull(cutoffs)
-int.maxcut <- int.maxcut[1]
-
-# Create accuracy geom_line chart and mark maximum accuracy
-ggplot(int.cutoff_acc_loop, aes(x=cutoffs, y=accuracies, label=accuracies)) + 
-  geom_line(size=2, color='indianred2') +
-  labs(x='Classiciation Cutoff', y='Accuracy', title='Accuracy by Cutoff Value - Interaction Based') +
-  geom_point(aes(y=int.maxacc, x=int.maxcut), size=5, color='black') +
-  geom_text(
-    aes(label=
-          ifelse(cutoffs == int.maxcut,
-                 paste(round(accuracies,2),'%, cutoff = ',int.maxcut,sep='')
-                 ,'')
-        ),hjust=-.2, vjust=0
-    )
-
-# Prepare Step ROC Curve
-results.int<-prediction(fit.pred.int, df_testclean$pay_response,label.ordering=c("<=50K",">50K"))
-roc.int = performance(results.int, measure = "tpr", x.measure = "fpr")
-
-plot(roc.int, col='Orange', main='ROC Model - Interaction Model')
-legend("bottomright",legend=c('Interaction Model'),col=c("orange"),lty=1,lwd=1)
+plot(roc.lda)
+plot(roc.qda, col ="red", add = TRUE)
+plot(roc.lasso,col="green", add = TRUE)
+plot(roc.step,col="orange", add = TRUE)
+legend("bottomright",legend=c("LDA","QDA","Lasso","Stepwise"),col=c("black","red","green", "orange"),lty=1,lwd=1)
 abline(a=0, b= 1)
+
 ```
-```
+
+
+
+
 
