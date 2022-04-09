@@ -491,10 +491,6 @@ plot(count, col=c("plum2","light green", "green", "papayawhip", "brown","purple"
 
 ```
 
-
-
-
-
 ```{r}
 df_trainclean %>% group_by(race, occupation) %>% summarise(count = n())
 
@@ -763,7 +759,7 @@ abline(a=0, b= 1)
 # Interaction Model
 ```{r}
 # Build Interaction Model
-fit.int <- glm(pay_response ~ age + hours_per_week + capital_net + sex + sex:age + workclass:sex + occupation:marital_status + capital_net:age + capital_net:workclass + native_country:sex + education + education:age + hours_per_week:capital_net, family='binomial', data=df_trainclean)
+fit.int <- glm(pay_response ~ hours_per_week + capital_net + age*capital_net + age:sex + race:age + age:marital_status + native_country:age + marital_status:hours_per_week + occupation:sex + age:occupation, family='binomial', data=df_trainclean)
 
 # Check Cook's Distance
 fit.int.cd <- cooks.distance(fit.int)
@@ -774,12 +770,13 @@ fit.int.cd[idx]
 
 # Model Summary
 summary(fit.int)
+#confint(fit.int)
 
 # Make predictions on model
 fit.pred.int<-predict(fit.int,newdata=df_testclean,type="response")
 
 # Set cutoff and make classifications from predictions
-cutoff<- 0.5
+cutoff<- 0.48
 class.int<-factor(ifelse(fit.pred.int>cutoff,">50K","<=50K"),levels=c("<=50K",">50K"))
 
 # Print confusion matrix
