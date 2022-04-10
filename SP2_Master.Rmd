@@ -23,6 +23,9 @@ library(corrplot)
 library(RColorBrewer)
 library(pheatmap)
 library(psych)
+library(tree)
+library(ISLR)
+library(randomForest)
 
 
 ```
@@ -1047,12 +1050,7 @@ abline(a=0, b= 1)
 
 #Random Forest
 ```{r}
-library(tree)
-library(ISLR)
-library(randomForest)
-
-
-# Random Search
+# Random Search for mtyr for Random Forest
 #control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
 #set.seed(1234)
 #mtry <- sqrt(ncol(x))
