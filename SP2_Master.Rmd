@@ -1045,37 +1045,52 @@ abline(a=0, b= 1)
 
 ```
 
-###Final ROC for outputs
-```{r}
-plot(roc.lda)
-plot(roc.qda, col ="red", add = TRUE)
-plot(roc.lasso,col="green", add = TRUE)
-plot(roc.step,col="orange", add = TRUE)
-legend("bottomright",legend=c("LDA","QDA","Lasso","Stepwise"),col=c("black","red","green", "orange"),lty=1,lwd=1)
-abline(a=0, b= 1)
-
-```
 #Random Forest
 ```{r}
 library(tree)
 library(ISLR)
 library(randomForest)
 
-train.rf<-randomForest(pay_response~.,data=df_trainclean,mtry=2,ntree=50000,importance=T)
-fit.pred.rf<-predict(train.rf,newdata=df_trainclean,type="prob")
 
+# Random Search
+#control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
+#set.seed(1234)
+#mtry <- sqrt(ncol(x))
+#rf_random <- train(pay_response~., data=df_trainclean, method="rf", metric="Accuracy", tuneLength=15, trControl=control)
+#print(rf_random)
+#plot(rf_random)
 
+#Train Model with RF
+train.rf<-randomForest(pay_response~.,data=df_trainclean,mtry=4,ntree=50,importance=T)
 
 #predict test with RF model
-pred.rf<-predict(train.rf,newdata=df_testclean,type="prob")
 
+
+#Print RF confusion matrix
+fit.pred.rf<-predict(train.rf,newdata=df_testclean,type="response")
+conf.rf <- table(fit.pred.rf, df_testclean$pay_response)
+cm.rf <- confusionMatrix(conf.rf)
+cm.rf
+
+#Create RF ROC table
+pred.rf<-predict(train.rf,newdata=df_testclean,type="prob")
 pred.table.rf <- prediction(pred.rf[,2], df_testclean$pay_response)
 roc.perf.rf = performance(pred.table.rf, measure = "tpr", x.measure = "fpr")
-auc.train.rf <- performance(pred.table.rf, measure = "auc")
-auc.train.rf <- auc.train.rf@y.values
 plot(roc.perf.rf)
+plot(roc.qda, col ="red", add = TRUE)
 abline(a=0, b= 1)
-text(x = .40, y = .6,paste("AUC = ", round(auc.train[[1]],3), sep = ""))
+
+```
+
+###Final ROC for outputs
+```{r}
+plot(roc.perf.rf)
+plot(roc.lda, col = "purple", add = TRUE)
+plot(roc.qda, col ="red", add = TRUE)
+plot(roc.lasso,col="green", add = TRUE)
+plot(roc.step,col="orange", add = TRUE)
+legend("bottomright",legend=c("Random Forest", "LDA","QDA","Lasso","Stepwise","Random Forest"),col=c("black","purple","red","green", "orange"),lty=1,lwd=1)
+abline(a=0, b= 1)
 
 ```
 
